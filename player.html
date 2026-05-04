@@ -1,0 +1,1957 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Métagora — Démo Hermès Sophie</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+
+    /* === FOND BEIGE PÂLE ÉLÉGANT === */
+    body {
+      background:
+        radial-gradient(ellipse at top, #faf3e6 0%, #f0e4d0 100%);
+      color: #3a2f20;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+    /* Texture subtile (papier) */
+    body::before {
+      content: ''; position: fixed; inset: 0;
+      background-image:
+        repeating-linear-gradient(45deg, rgba(180,150,100,0.025) 0, rgba(180,150,100,0.025) 1px, transparent 1px, transparent 4px),
+        radial-gradient(ellipse at center, transparent 0%, rgba(120,90,40,0.06) 100%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    /* === HEADER === */
+    header {
+      flex-shrink: 0;
+      height: 60px;
+      padding: 0 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px;
+      z-index: 10;
+      position: relative;
+      border-bottom: 1px solid rgba(120,90,40,0.12);
+      background: rgba(250,243,230,0.6);
+      backdrop-filter: blur(10px);
+    }
+    .brand {
+      display: flex; align-items: center; gap: 10px;
+      font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+      font-size: 14px; color: #3a2f20;
+    }
+    .brand .crest { color: #b8860b; font-size: 17px; }
+    .header-right { display: flex; align-items: center; gap: 12px; }
+    .score-pill {
+      display: flex; gap: 14px; font-size: 12px;
+      background: rgba(255,255,255,0.6);
+      padding: 8px 16px; border-radius: 999px;
+      border: 1px solid rgba(120,90,40,0.18);
+      color: #5a4a30;
+    }
+    .score-pill strong { color: #b8860b; font-weight: 700; }
+    .header-btn {
+      background: #b8860b; color: white; border: 0;
+      padding: 8px 16px; border-radius: 999px; font-size: 12px;
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      letter-spacing: .04em;
+      transition: background .15s;
+      box-shadow: 0 2px 8px rgba(184,134,11,0.3);
+    }
+    .header-btn:hover { background: #966c08; }
+
+    /* === MAIN === */
+    main {
+      flex: 1;
+      display: flex; flex-direction: column;
+      min-height: 0;
+      padding: 0 24px 16px;
+      gap: 14px;
+      z-index: 2;
+      position: relative;
+    }
+
+    /* Vidéo */
+    .video-container {
+      flex: 1;
+      min-height: 0;
+      display: flex; align-items: center; justify-content: center;
+      position: relative;
+    }
+    .video-frame {
+      position: relative;
+      max-width: 100%; max-height: 100%;
+      aspect-ratio: 16/9;
+      width: auto;
+      border-radius: 14px; overflow: hidden;
+      box-shadow: 0 20px 60px rgba(120,90,40,0.25), 0 0 0 1px rgba(184,134,11,0.2);
+      background: #1a1410;
+      transition: box-shadow .35s;
+    }
+    .video-frame.success {
+      box-shadow: 0 20px 60px rgba(184,134,11,0.5), 0 0 0 4px #b8860b;
+    }
+    .video-frame video {
+      width: 100%; height: 100%;
+      object-fit: contain;
+      background: #1a1410;
+    }
+    /* Sous-titres en overlay sur la vidéo (visibles uniquement quand muté) */
+    .video-caption {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      background: linear-gradient(to top, rgba(0,0,0,0.88) 0%, rgba(0,0,0,0.55) 65%, transparent 100%);
+      padding: 36px 28px 20px;
+      color: #ffffff;
+      font-size: 16px;
+      line-height: 1.55;
+      text-align: center;
+      font-weight: 500;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.85);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity .4s;
+    }
+    .video-caption.show { opacity: 1; }
+    .video-caption .speaker {
+      font-size: 11px;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: #fbbf24;
+      font-weight: 700;
+      margin-bottom: 6px;
+      display: block;
+    }
+    /* Bouton mute/unmute superposé sur la vidéo */
+    .video-mute-btn {
+      position: absolute;
+      top: 12px; right: 12px;
+      z-index: 5;
+      background: rgba(0,0,0,0.6);
+      color: #fff;
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 50%;
+      width: 42px; height: 42px;
+      font-size: 18px;
+      cursor: pointer;
+      transition: background .2s, transform .15s;
+      display: flex; align-items: center; justify-content: center;
+      padding: 0;
+      font-family: inherit;
+      backdrop-filter: blur(4px);
+    }
+    .video-mute-btn:hover {
+      background: rgba(0,0,0,0.85);
+      transform: scale(1.05);
+    }
+    .video-mute-btn.muted {
+      background: rgba(184,134,11,0.85);
+      border-color: rgba(255,255,255,0.4);
+    }
+    /* Mode "choix" : la vidéo est cachée, les choix prennent la place */
+    main.choices-only .video-container { display: none; }
+    main.choices-only { justify-content: center; }
+    @media (max-width: 720px) {
+      .video-caption { font-size: 13px; padding: 28px 16px 14px; }
+      .video-mute-btn { width: 36px; height: 36px; font-size: 16px; top: 8px; right: 8px; }
+    }
+    .placeholder {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 28px;
+      background: linear-gradient(135deg, #2a201a, #3a2f20);
+      color: #d4c5a8; text-align: center;
+    }
+    .placeholder .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid rgba(255,255,255,0.1);
+      border-top-color: #b8860b;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    .placeholder .label {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .15em; color: #b8860b;
+    }
+    .placeholder .text {
+      max-width: 80%; color: #d4c5a8; font-size: 14px; line-height: 1.5; font-style: italic;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Question */
+    .question {
+      flex-shrink: 0;
+      text-align: center;
+      font-size: 12px; letter-spacing: .18em; text-transform: uppercase;
+      color: #b8860b; font-weight: 600;
+      padding: 4px 0;
+    }
+
+    /* Choix */
+    .choices-grid {
+      flex-shrink: 0;
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 10px; max-width: 1100px; margin: 0 auto; width: 100%;
+    }
+    .choice {
+      background: rgba(255,255,255,0.85);
+      border: 1px solid rgba(120,90,40,0.2);
+      border-radius: 10px;
+      padding: 14px 18px;
+      cursor: pointer;
+      transition: all .2s;
+      text-align: left;
+      color: #3a2f20;
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1.45;
+      backdrop-filter: blur(6px);
+      box-shadow: 0 2px 8px rgba(120,90,40,0.08);
+    }
+    .choice:hover {
+      background: rgba(255,255,255,0.97);
+      border-color: rgba(184,134,11,0.5);
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px rgba(120,90,40,0.18);
+    }
+    .choice:disabled { cursor: not-allowed; opacity: 0.5; transform: none; }
+    .choice .num {
+      display: inline-block; width: 24px; height: 24px;
+      background: rgba(184,134,11,0.15); color: #b8860b;
+      border-radius: 50%; text-align: center; line-height: 24px;
+      font-weight: 700; font-size: 12px; margin-right: 10px;
+      vertical-align: middle;
+    }
+    .choice .text { display: inline; vertical-align: middle; }
+    .choice.invalid {
+      animation: shake .35s;
+      background: rgba(254,226,226,0.85) !important;
+      border-color: #ef4444 !important;
+    }
+    .choice.valid-flash {
+      animation: pulseGold .7s;
+      background: rgba(254,243,199,0.95) !important;
+      border-color: #b8860b !important;
+    }
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-6px); }
+      40%, 80% { transform: translateX(6px); }
+    }
+    @keyframes pulseGold {
+      0% { transform: scale(1); }
+      40% { transform: scale(1.04); box-shadow: 0 0 35px rgba(184,134,11,0.6); }
+      100% { transform: scale(1); }
+    }
+
+    /* === STEP TIMELINE === */
+    .step-timeline {
+      flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      gap: 0;
+      padding: 8px 0 4px;
+      max-width: 1100px;
+      margin: 0 auto;
+      width: 100%;
+    }
+    .step-node {
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      flex-shrink: 0;
+    }
+    .step-node .dot {
+      width: 12px; height: 12px; border-radius: 50%;
+      background: rgba(120,90,40,0.15);
+      border: 2px solid rgba(120,90,40,0.3);
+      transition: all .3s;
+    }
+    .step-node.done .dot { background: #b8860b; border-color: #b8860b; box-shadow: 0 0 8px rgba(184,134,11,0.4); }
+    .step-node.current .dot {
+      background: #d4a017; border-color: #d4a017;
+      box-shadow: 0 0 14px rgba(212,160,23,0.7);
+      animation: pulseDot 1.6s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.3); }
+    }
+    .step-node .lbl {
+      font-size: 10px; text-transform: uppercase; letter-spacing: .08em;
+      color: rgba(58,47,32,0.5); font-weight: 600;
+      white-space: nowrap;
+    }
+    .step-node.done .lbl { color: #b8860b; }
+    .step-node.current .lbl { color: #d4a017; }
+    .step-line {
+      width: clamp(20px, 6vw, 80px); height: 2px;
+      background: rgba(120,90,40,0.2);
+      margin: 0 6px; margin-bottom: 18px;
+      transition: background .3s;
+    }
+    .step-line.done { background: #b8860b; }
+
+    /* Timeline mobile compacte (1 seule étape visible) */
+    .step-timeline-mobile {
+      display: none;
+      flex-shrink: 0;
+      align-items: center; justify-content: center;
+      gap: 12px;
+      padding: 10px 16px;
+      background: rgba(255,255,255,0.65);
+      border: 1px solid rgba(120,90,40,0.18);
+      border-radius: 999px;
+      max-width: 320px;
+      margin: 0 auto;
+      width: fit-content;
+    }
+    .step-timeline-mobile .label {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .12em;
+      color: #6a5840; font-weight: 600;
+    }
+    .step-timeline-mobile .current {
+      font-size: 13px; font-weight: 700; color: #b8860b;
+    }
+    .step-timeline-mobile .progress {
+      font-size: 11px; color: #8a7a60;
+    }
+    .step-timeline-mobile .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: #d4a017; box-shadow: 0 0 10px rgba(212,160,23,0.7);
+      animation: pulseDot 1.6s ease-in-out infinite;
+    }
+
+    /* === SUCCESS ANIMATIONS === */
+    /* Étoiles dorées qui partent du bouton cliqué */
+    .star-particle {
+      position: fixed;
+      pointer-events: none;
+      font-size: 18px;
+      color: #d4a017;
+      animation: starFloat 1.2s cubic-bezier(.2,.8,.2,1) forwards;
+      z-index: 30;
+      text-shadow: 0 0 8px rgba(212,160,23,0.8);
+    }
+    @keyframes starFloat {
+      0%   { transform: translate(0, 0) scale(0.4) rotate(0deg); opacity: 0; }
+      15%  { transform: translate(0, -10px) scale(1.2) rotate(45deg); opacity: 1; }
+      100% { transform: translate(var(--dx, 0), var(--dy, -120px)) scale(0.6) rotate(360deg); opacity: 0; }
+    }
+
+    /* Emblème Hermès central qui flash + scale */
+    .crest-burst {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%) scale(0.2);
+      font-size: 140px;
+      color: #b8860b;
+      pointer-events: none;
+      z-index: 40;
+      text-shadow:
+        0 0 30px rgba(212,160,23,0.6),
+        0 0 60px rgba(212,160,23,0.4),
+        0 0 90px rgba(212,160,23,0.2);
+      animation: crestBurst 1.4s cubic-bezier(.2,.8,.2,1) forwards;
+    }
+    @keyframes crestBurst {
+      0%   { transform: translate(-50%, -50%) scale(0.2) rotate(-30deg); opacity: 0; }
+      30%  { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0.95; }
+      60%  { transform: translate(-50%, -50%) scale(1.15) rotate(0deg); opacity: 0.7; }
+      100% { transform: translate(-50%, -50%) scale(1.5) rotate(0deg); opacity: 0; }
+    }
+
+    /* Toast "Excellent !" qui apparaît brièvement */
+    .success-toast {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, calc(-50% + 100px));
+      background: rgba(255, 251, 235, 0.95);
+      color: #b8860b;
+      padding: 12px 32px;
+      border-radius: 999px;
+      font-weight: 700; letter-spacing: .12em; font-size: 14px;
+      text-transform: uppercase;
+      border: 1px solid #b8860b;
+      box-shadow: 0 8px 24px rgba(184,134,11,0.3);
+      pointer-events: none;
+      z-index: 35;
+      animation: toastFloat 1.6s cubic-bezier(.2,.8,.2,1) forwards;
+      backdrop-filter: blur(10px);
+    }
+    @keyframes toastFloat {
+      0%   { transform: translate(-50%, calc(-50% + 100px)) scale(0.8); opacity: 0; }
+      20%  { transform: translate(-50%, calc(-50% + 60px)) scale(1); opacity: 1; }
+      80%  { transform: translate(-50%, calc(-50% + 40px)) scale(1); opacity: 1; }
+      100% { transform: translate(-50%, calc(-50% + 0px)) scale(1.05); opacity: 0; }
+    }
+
+    /* === FEEDBACK MODAL : tip de vente === */
+    .feedback-modal {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(58,47,32,0.45);
+      backdrop-filter: blur(10px);
+      z-index: 50;
+      opacity: 0; pointer-events: none;
+      transition: opacity .25s;
+    }
+    .feedback-modal.show { opacity: 1; pointer-events: auto; }
+    .feedback-card {
+      background: linear-gradient(135deg, rgba(186,230,253,0.97), rgba(224,242,254,0.98));
+      border: 1px solid rgba(125,211,252,0.6);
+      border-radius: 16px;
+      padding: 36px 38px; max-width: 540px; width: 90%;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.4), 0 0 0 4px rgba(125,211,252,0.15);
+      transform: scale(0.92);
+      transition: transform .25s cubic-bezier(.2,.8,.2,1);
+      color: #0c4a6e;
+    }
+    .feedback-modal.show .feedback-card { transform: scale(1); }
+    .feedback-card .icon { font-size: 44px; text-align: center; margin-bottom: 8px; }
+    .feedback-card .label {
+      font-size: 12px; text-transform: uppercase; letter-spacing: .2em;
+      color: #0284c7; font-weight: 800; text-align: center; margin-bottom: 18px;
+    }
+    .feedback-card .response-text {
+      background: rgba(255,255,255,0.55);
+      padding: 14px 18px; border-radius: 10px; margin-bottom: 18px;
+      font-size: 13px; color: #075985; font-style: italic; line-height: 1.5;
+      border-left: 3px solid #0ea5e9;
+    }
+    .feedback-card .why { font-size: 14px; color: #0c4a6e; line-height: 1.65; margin-bottom: 18px; font-weight: 500; }
+    .feedback-card .score-row { text-align: center; }
+    .feedback-card .score-badge {
+      display: inline-block; padding: 6px 16px;
+      background: rgba(14,165,233,0.18); color: #0369a1;
+      border-radius: 999px; font-weight: 700; font-size: 12px;
+      border: 1px solid rgba(14,165,233,0.35);
+      margin-bottom: 22px;
+    }
+    .feedback-card button.retry {
+      display: block; width: 100%;
+      background: #0ea5e9; color: white; border: 0;
+      padding: 13px 24px; border-radius: 10px;
+      font-weight: 700; font-family: inherit; font-size: 14px;
+      cursor: pointer; transition: background .15s;
+      letter-spacing: .04em;
+      box-shadow: 0 6px 16px rgba(14,165,233,0.4);
+    }
+    .feedback-card button.retry:hover { background: #0284c7; }
+
+    /* === END SCREEN — page complète scrollable === */
+    .end-screen {
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse at top, #faf3e6 0%, #f0e4d0 100%);
+      z-index: 100;
+      opacity: 0; pointer-events: none;
+      overflow-y: auto;
+      transition: opacity .4s;
+    }
+    .end-screen.show { opacity: 1; pointer-events: auto; }
+    .end-content {
+      max-width: 760px; margin: 0 auto;
+      padding: 50px 24px 40px;
+      color: #3a2f20;
+    }
+    .end-hero { text-align: center; margin-bottom: 28px; }
+    .end-hero h1 { font-size: 38px; color: #b8860b; letter-spacing: .04em; margin-bottom: 8px; font-weight: 700; }
+    .end-hero p { color: #6a5840; font-size: 14px; line-height: 1.6; max-width: 480px; margin: 0 auto; }
+
+    /* === Welcome overlay (demande du prénom au démarrage) === */
+    .welcome-overlay {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(135deg, #f5e6d3 0%, #e8d5b7 50%, #d4b896 100%);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      animation: fadeIn .35s;
+    }
+    .welcome-overlay.show { display: flex; }
+    .welcome-card {
+      background: rgba(255,255,255,0.96);
+      border-radius: 20px;
+      padding: 48px 40px 40px;
+      max-width: 460px;
+      width: 100%;
+      box-shadow: 0 30px 80px rgba(120,90,40,0.28);
+      text-align: center;
+      border: 1px solid rgba(184,134,11,0.3);
+    }
+    .welcome-crest { font-size: 56px; color: #b8860b; margin-bottom: 4px; line-height: 1; }
+    .welcome-card h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 30px;
+      color: #3a2f20;
+      margin: 8px 0 6px 0;
+      letter-spacing: .04em;
+      font-weight: 700;
+    }
+    .welcome-card p {
+      font-size: 13px;
+      color: #6b5a3f;
+      margin: 0 0 28px 0;
+      line-height: 1.6;
+      letter-spacing: .02em;
+    }
+    .welcome-card label {
+      display: block;
+      font-size: 11px;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+      color: #8a7050;
+      margin-bottom: 8px;
+      font-weight: 700;
+      text-align: left;
+    }
+    .welcome-card input {
+      width: 100%;
+      padding: 14px 18px;
+      font-size: 17px;
+      border: 1.5px solid rgba(184,134,11,0.3);
+      border-radius: 10px;
+      font-family: inherit;
+      color: #3a2f20;
+      background: rgba(255,255,255,0.85);
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      box-sizing: border-box;
+      margin-bottom: 22px;
+    }
+    .welcome-card input:focus {
+      border-color: #b8860b;
+      box-shadow: 0 0 0 3px rgba(184,134,11,0.15);
+    }
+    .welcome-card input.shake { animation: shake .35s; border-color: #ef4444; }
+    .welcome-card button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #b8860b 0%, #966c08 100%);
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      cursor: pointer;
+      font-family: inherit;
+      transition: transform .15s, box-shadow .2s;
+      text-transform: uppercase;
+    }
+    .welcome-card button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 24px rgba(184,134,11,0.4);
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    @media (max-width: 720px) {
+      .welcome-card { padding: 36px 24px 28px; }
+      .welcome-card h1 { font-size: 24px; }
+      .welcome-crest { font-size: 44px; }
+    }
+    .end-section {
+      background: rgba(255,255,255,0.72);
+      border: 1px solid rgba(120,90,40,0.18);
+      border-radius: 14px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 16px rgba(120,90,40,0.06);
+    }
+    .end-section h2 {
+      font-size: 11px; text-transform: uppercase; letter-spacing: .15em;
+      color: #b8860b; font-weight: 700; margin-bottom: 14px;
+    }
+    .stat-row { display: flex; gap: 24px; justify-content: center; }
+    .stat-row .stat { text-align: center; }
+    .stat-val { font-size: 28px; font-weight: 700; color: #3a2f20; line-height: 1; }
+    .stat-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #8a7a60; margin-top: 4px; }
+    /* Badge produit (carte mise en avant) */
+    .product-badge {
+      background: linear-gradient(135deg, rgba(184,134,11,0.14), rgba(212,160,23,0.08));
+      border-color: rgba(184,134,11,0.4);
+      text-align: center;
+    }
+    .product-badge .icon-large { font-size: 56px; margin-bottom: 4px; }
+    .product-badge .name { font-size: 22px; font-weight: 700; color: #b8860b; margin-bottom: 4px; }
+    .product-badge .label { font-size: 12px; color: #8a7a60; margin-bottom: 6px; letter-spacing: .04em; text-transform: uppercase; }
+    .product-badge .info { font-size: 12px; color: #6a5840; }
+    .product-badge.no-badge .name { color: #8a7a60; }
+    /* Liste mastery par phase */
+    .phase-list { display: flex; flex-direction: column; gap: 8px; }
+    .phase-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 10px 14px;
+      background: rgba(250,243,230,0.55);
+      border-radius: 8px;
+      border-left: 3px solid #b8860b;
+      flex-wrap: wrap;
+    }
+    .phase-row.no-badge { border-left-color: #d4c5a8; opacity: 0.65; }
+    .phase-row .phase-name { font-weight: 600; font-size: 13px; flex: 0 0 130px; color: #3a2f20; }
+    .phase-row .phase-stats { font-size: 11px; color: #6a5840; flex: 1; }
+    .phase-row .phase-badge { font-size: 13px; font-weight: 600; color: #b8860b; white-space: nowrap; }
+    .phase-row .phase-badge .icon { margin-right: 6px; }
+    /* Tips */
+    .tips-list { display: flex; flex-direction: column; gap: 10px; }
+    .tip-item {
+      display: flex; gap: 10px;
+      background: rgba(186,230,253,0.4);
+      border-left: 3px solid #0ea5e9;
+      padding: 12px 14px;
+      border-radius: 8px;
+      font-size: 13px;
+      color: #0c4a6e;
+      line-height: 1.55;
+    }
+    .tip-item .icon { flex-shrink: 0; font-size: 16px; line-height: 1.4; }
+    .tip-item .body strong { color: #075985; }
+    .tip-item .body .source { font-size: 11px; color: #0284c7; font-style: italic; margin-top: 4px; }
+    /* Toggle missing badges */
+    .missing-toggle {
+      background: transparent; border: 1px dashed #b8860b; color: #b8860b;
+      padding: 11px 16px; border-radius: 8px;
+      font-family: inherit; font-size: 12px; font-weight: 600;
+      cursor: pointer; width: 100%;
+      transition: background .15s;
+      letter-spacing: .04em;
+    }
+    .missing-toggle:hover { background: rgba(184,134,11,0.08); }
+    .missing-list { display: none; flex-direction: column; gap: 6px; margin-top: 12px; }
+    .missing-list.show { display: flex; }
+    .missing-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; background: rgba(120,90,40,0.05);
+      border-radius: 6px; font-size: 12px; color: #6a5840;
+    }
+    .missing-item .icon { opacity: 0.45; flex-shrink: 0; }
+    .missing-item .name { flex: 1; }
+    .missing-item .req { font-size: 10px; color: #8a7a60; font-style: italic; flex-shrink: 0; }
+    /* Boutons fin */
+    .end-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
+    .end-actions button {
+      padding: 13px 28px; border-radius: 10px; border: 0;
+      font-family: inherit; font-size: 14px; font-weight: 700;
+      cursor: pointer; letter-spacing: .04em;
+    }
+    .end-actions .restart {
+      background: #b8860b; color: white;
+      box-shadow: 0 6px 16px rgba(184,134,11,0.3);
+    }
+    .end-actions .restart:hover { background: #966c08; }
+
+    /* === Share modal === */
+    .share-modal {
+      position: fixed; inset: 0; background: rgba(58,47,32,0.6);
+      display: none; align-items: center; justify-content: center; z-index: 150;
+      backdrop-filter: blur(8px);
+    }
+    .share-modal.open { display: flex; }
+    .share-card {
+      background: #ffffff; border-radius: 12px; padding: 28px 32px;
+      max-width: 540px; width: 90%;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.3);
+      color: #3a2f20;
+    }
+    .share-card h2 { font-size: 18px; margin-bottom: 6px; color: #b8860b; }
+    .share-card .sub { color: #6a5840; font-size: 12px; margin-bottom: 16px; line-height: 1.5; }
+    .share-card label {
+      display: block; font-size: 11px; color: #8a7a60;
+      text-transform: uppercase; letter-spacing: .08em; margin: 12px 0 4px; font-weight: 600;
+    }
+    .share-card input {
+      width: 100%; padding: 10px 12px; background: #faf3e6; color: #3a2f20;
+      border: 1px solid rgba(120,90,40,0.2); border-radius: 6px; font-family: inherit; font-size: 13px;
+      outline: none; transition: border-color .15s;
+    }
+    .share-card input:focus { border-color: #b8860b; }
+    .share-card .result {
+      display: none; background: #faf3e6; padding: 14px; border-radius: 8px;
+      margin-top: 14px; border-left: 3px solid #22c55e;
+    }
+    .share-card .result.show { display: block; }
+    .share-card .result .ok-label {
+      color: #15803d; font-size: 11px; text-transform: uppercase; letter-spacing: .1em;
+      margin-bottom: 8px; font-weight: 700;
+    }
+    .share-card .result .url-row { display: flex; gap: 8px; align-items: center; margin-top: 4px; }
+    .share-card .result input { font-family: Consolas, monospace; font-size: 11px; flex: 1; }
+    .share-card .result .copy-btn, .share-card .result .open-btn {
+      color: white; border: 0;
+      padding: 10px 14px; border-radius: 6px; font-size: 12px;
+      cursor: pointer; flex-shrink: 0;
+    }
+    .share-card .result .copy-btn { background: #b8860b; }
+    .share-card .result .open-btn { background: #6a5840; }
+    .share-card .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 18px; }
+    .share-card .actions button {
+      padding: 10px 16px; border: 0; border-radius: 6px;
+      cursor: pointer; font-family: inherit; font-size: 13px;
+    }
+    .share-card .actions .cancel { background: #ede4d2; color: #3a2f20; }
+    .share-card .actions .save { background: #b8860b; color: #fff; font-weight: 700; }
+    .share-card .actions button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* === Empty state === */
+    .empty {
+      position: fixed; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      background: rgba(245,235,220,0.95);
+      z-index: 200;
+    }
+    .empty .card {
+      background: #ffffff; padding: 40px; border-radius: 12px;
+      max-width: 480px; text-align: center;
+      border: 1px solid rgba(184,134,11,0.2);
+      color: #3a2f20;
+    }
+    .empty h2 { color: #b8860b; margin-bottom: 12px; }
+    .empty p { color: #5a4a30; margin-bottom: 20px; line-height: 1.5; font-size: 13px; }
+    .empty input[type=file] { display: none; }
+    .empty .upload-btn {
+      background: #b8860b; color: white; border: 0;
+      padding: 12px 24px; border-radius: 8px;
+      font-weight: 600; font-family: inherit; cursor: pointer;
+    }
+
+    /* Boot loader (préparation intro) */
+    .boot-loader {
+      position: fixed; inset: 0; background: rgba(245,235,220,0.95);
+      display: none; flex-direction: column; align-items: center; justify-content: center;
+      gap: 16px; z-index: 180; color: #5a4a30;
+    }
+    .boot-loader.show { display: flex; }
+    .boot-loader .spinner {
+      width: 50px; height: 50px;
+      border: 4px solid rgba(184,134,11,0.2);
+      border-top-color: #b8860b;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    .boot-loader .label { font-size: 13px; letter-spacing: .08em; }
+
+    /* Indicateur de position du carousel (mobile uniquement) — "← 1/4 →" */
+    .choices-indicator {
+      display: none;
+      flex-shrink: 0;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 6px 0 2px;
+      color: #b8860b;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .04em;
+    }
+    .choices-indicator .arrow {
+      font-size: 18px;
+      opacity: 0.55;
+      transition: opacity .2s;
+      user-select: none;
+    }
+    .choices-indicator .arrow.dim { opacity: 0.15; }
+    .choices-indicator .pos {
+      min-width: 38px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (max-width: 720px) {
+      header { padding: 0 12px; height: 52px; }
+      .brand { font-size: 10px; letter-spacing: .08em; }
+      .header-right { gap: 6px; }
+      .score-pill { font-size: 11px; padding: 5px 10px; gap: 8px; }
+      .header-btn { padding: 5px 10px; font-size: 11px; }
+      main { padding: 0 0 10px; gap: 8px; }
+      .video-container { padding: 0 12px; }
+      .crest-burst { font-size: 100px; }
+      .question { font-size: 11px; padding: 2px 0; }
+
+      /* CHOIX EN CAROUSEL HORIZONTAL — swipe gauche/droite */
+      .choices-grid {
+        display: flex !important;
+        flex-direction: row;
+        overflow-x: auto;
+        overflow-y: hidden;
+        scroll-snap-type: x mandatory;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+        gap: 12px;
+        padding: 4px 16px 8px;
+        max-width: 100%;
+        margin: 0;
+      }
+      .choices-grid::-webkit-scrollbar { display: none; }
+      .choice {
+        flex: 0 0 calc(100% - 24px);
+        scroll-snap-align: center;
+        scroll-snap-stop: always;
+        padding: 18px 20px;
+        font-size: 16px;
+        line-height: 1.5;
+        min-height: 110px;
+        display: flex;
+        align-items: center;
+      }
+      .choice .num {
+        width: 30px; height: 30px; line-height: 30px;
+        font-size: 14px; margin-right: 12px;
+      }
+      .choices-indicator { display: flex; }
+
+      /* Timeline mobile compacte */
+      .step-timeline { display: none !important; }
+      .step-timeline-mobile { display: flex; margin-top: 4px; }
+
+      /* Écran de fin mobile */
+      .end-content { padding: 30px 14px; }
+      .end-hero h1 { font-size: 30px; }
+      .end-section { padding: 16px 18px; }
+      .stat-row { flex-wrap: wrap; gap: 16px; }
+      .phase-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+      .phase-row .phase-name { flex: none; }
+      .phase-row .phase-stats, .phase-row .phase-badge { font-size: 13px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="brand" id="brand-label"><span class="crest">⚜</span> Hermès · Sophie Démo</div>
+  <div class="header-right">
+    <div class="score-pill">
+      <span>Tentatives : <strong id="attempts-display">0</strong></span>
+    </div>
+    <button id="btn-share" class="header-btn" style="display:none">🔗 Partager</button>
+  </div>
+</header>
+
+<div class="welcome-overlay" id="welcome-overlay">
+  <div class="welcome-card">
+    <div class="welcome-crest">⚜</div>
+    <h1>Bienvenue chez Hermès</h1>
+    <p>Avant de commencer la simulation, dites-nous comment vous appeler.</p>
+    <label for="welcome-input">Votre prénom</label>
+    <input type="text" id="welcome-input" autocomplete="given-name" placeholder="Camille, Tony, Sophie…" maxlength="40" />
+    <button id="welcome-submit" type="button">Commencer</button>
+  </div>
+</div>
+
+<main>
+  <div class="video-container">
+    <div class="video-frame" id="video-frame">
+      <div class="placeholder">
+        <div class="spinner"></div>
+        <div class="label">Chargement…</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="question" id="question-label">&nbsp;</div>
+
+  <div class="choices-grid" id="choices-grid"></div>
+
+  <div class="choices-indicator" id="choices-indicator"></div>
+
+  <div class="step-timeline" id="step-timeline"></div>
+  <div class="step-timeline-mobile" id="step-timeline-mobile">
+    <span class="dot"></span>
+    <span class="current" id="mobile-current-phase">—</span>
+    <span class="progress" id="mobile-current-progress">—</span>
+  </div>
+</main>
+
+<div class="feedback-modal" id="feedback-modal">
+  <div class="feedback-card">
+    <div class="icon">💡</div>
+    <div class="label">Tips de vente</div>
+    <div class="response-text" id="feedback-response">—</div>
+    <div class="why" id="feedback-why">—</div>
+    <div class="score-row">
+      <span class="score-badge" id="feedback-score">0/5</span>
+    </div>
+    <button class="retry" id="feedback-retry">Réessayer ↻</button>
+  </div>
+</div>
+
+<div class="end-screen" id="end-screen">
+  <div class="end-content">
+    <div class="end-hero">
+      <h1 id="end-hero-title">🎉 Bravo !</h1>
+      <p>Tu as accompli le parcours avec Sophie. Voici ton bilan détaillé et tes badges débloqués.</p>
+    </div>
+
+    <div class="end-section">
+      <h2>📊 Stats globales</h2>
+      <div class="stat-row">
+        <div class="stat"><div class="stat-val" id="end-attempts">0</div><div class="stat-lbl">Tentatives</div></div>
+        <div class="stat"><div class="stat-val" id="end-errors">0</div><div class="stat-lbl">Erreurs</div></div>
+        <div class="stat"><div class="stat-val" id="end-score">0</div><div class="stat-lbl">Score</div></div>
+        <div class="stat"><div class="stat-val" id="end-time">0s</div><div class="stat-lbl">Durée</div></div>
+      </div>
+    </div>
+
+    <div class="end-section product-badge" id="end-product-badge">
+      <!-- rempli par renderEndScreen() -->
+    </div>
+
+    <div class="end-section">
+      <h2>🏅 Maîtrise par phase</h2>
+      <div class="phase-list" id="end-phase-list"></div>
+    </div>
+
+    <div class="end-section">
+      <h2>💡 3 tips de vente à retenir</h2>
+      <div class="tips-list" id="end-tips-list"></div>
+    </div>
+
+    <div class="end-section">
+      <button class="missing-toggle" id="missing-toggle">Voir les badges manquants ▾</button>
+      <div class="missing-list" id="missing-list"></div>
+    </div>
+
+    <div class="end-actions">
+      <button class="restart" id="end-restart">↻ Recommencer</button>
+    </div>
+  </div>
+</div>
+
+<div class="share-modal" id="share-modal">
+  <div class="share-card">
+    <h2>🔗 Partager cette démo</h2>
+    <p class="sub">Génère un lien public pour partager cette simulation avec ton client.</p>
+    <label>Marque</label>
+    <input type="text" id="share-brand" placeholder="Hermès" autocomplete="off" />
+    <label>Titre du scénario</label>
+    <input type="text" id="share-title" placeholder="Sophie · Phase Découverte" autocomplete="off" />
+    <label>Produit (pour les badges)</label>
+    <input type="text" id="share-product" placeholder="Musc Pallida" autocomplete="off" />
+    <label>URL site marque (optionnel)</label>
+    <input type="text" id="share-website" placeholder="https://hermes.com" autocomplete="off" />
+    <label>Slug du lien (auto-généré, modifiable)</label>
+    <input type="text" id="share-slug" placeholder="hermes-sophie-decouverte" autocomplete="off" />
+    <div class="result" id="share-result">
+      <div class="ok-label">✓ Démo enregistrée — lien public</div>
+      <div class="url-row">
+        <input type="text" id="share-result-url" readonly />
+        <button class="copy-btn" id="share-copy">📋 Copier</button>
+        <button class="open-btn" id="share-open">↗ Ouvrir</button>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="cancel" id="share-cancel">Fermer</button>
+      <button class="save" id="share-save">🔗 Générer le lien</button>
+    </div>
+  </div>
+</div>
+
+<div class="empty" id="empty-state">
+  <div class="card">
+    <h2>Démo Hermès Sophie</h2>
+    <p>Charge un fichier de démo (<code>demo-*.json</code>) généré depuis le viewer pour démarrer la simulation.</p>
+    <label class="upload-btn">
+      📤 Charger une démo
+      <input type="file" id="demo-input" accept=".json,application/json" />
+    </label>
+    <p style="margin-top:16px; font-size:11px; color:#8a7a60">
+      Astuce : <code>player.html?config=URL</code> · <code>player.html?slug=mon-slug</code>
+    </p>
+  </div>
+</div>
+
+<div class="boot-loader" id="boot-loader">
+  <div class="spinner"></div>
+  <div class="label" id="boot-loader-label">Préparation de la vidéo d'introduction…</div>
+</div>
+
+<script>
+// ============================================================================
+// État de la démo
+// ============================================================================
+let demo = null;
+let pickStep = 0;             // step dont on affiche les choix actuellement
+let attempts = 0;
+let startTime = null;
+let totalScore = 0;
+let attemptsByPhase = {};     // phase → nb total de clics
+let stepsByPhase = {};        // phase → nb d'étapes interactives (calculé au load)
+let wrongClicks = [];         // [{ step, phase, choiceIdx, score, comment, choiceText }]
+
+// === Configuration des badges ===
+const BADGE_TIER_BY_ERRORS = (errors) => {
+  if (errors === 0) return 4;
+  if (errors < 5) return 3;
+  if (errors < 10) return 2;
+  if (errors < 20) return 1;
+  return 0;
+};
+const PRODUCT_BADGE_NAMES = ['Initié', 'Connaisseur', 'Ambassadeur', 'Expert'];
+const PHASE_BADGE_NAMES = {
+  'Accueil':      ['Premier sourire', 'Voix accueillante', "Maître d'hôte",  "Signature d'accueil"],
+  'Découverte':   ['Oreille fine',    'Profileur',         'Sourcier',        "Lecteur d'âmes"],
+  'Présentation': ['Conteur',         'Évocateur',         'Sensoriel',       'Sublimateur'],
+  'Showcase':     ['Conteur',         'Évocateur',         'Sensoriel',       'Sublimateur'],
+  'Objections':   ['Apaisant',        'Diplomate',         'Cristal',         "Maître d'équilibre"],
+  'Conclusion':   ['Conseiller',      'Confident',         "Sceau d'or",      'Maître closeur'],
+};
+const TIER_ICONS = ['', '⭐', '⭐⭐', '⭐⭐⭐', '🏆'];
+const TIER_LABEL = ['', 'Niveau 1', 'Niveau 2', 'Niveau 3', 'Expert'];
+
+function computePhaseBadge(phase, attemptsCount, stepsCount) {
+  const errors = Math.max(0, attemptsCount - stepsCount);
+  const tier = BADGE_TIER_BY_ERRORS(errors);
+  if (tier === 0) return { tier: 0, name: null, icon: '', errors, attempts: attemptsCount, steps: stepsCount, phase };
+  const names = PHASE_BADGE_NAMES[phase] || PHASE_BADGE_NAMES['Découverte'];
+  return {
+    tier, name: names[tier - 1], icon: TIER_ICONS[tier], label: TIER_LABEL[tier],
+    errors, attempts: attemptsCount, steps: stepsCount, phase,
+  };
+}
+function computeProductBadge(totalErrors, productName) {
+  const tier = BADGE_TIER_BY_ERRORS(totalErrors);
+  if (tier === 0) return { tier: 0, productName, totalErrors };
+  return {
+    tier,
+    name: `${PRODUCT_BADGE_NAMES[tier - 1]} ${productName}`,
+    icon: TIER_ICONS[tier],
+    label: TIER_LABEL[tier],
+    totalErrors, productName,
+  };
+}
+
+const INTRO_TEXT = 'Bienvenue, vous êtes notre Advisor Hermès. Êtes-vous prêt à partager un moment avec nos clients préférés ?';
+const INTRO_CACHE_KEY = 'lms:introVideo';
+const INTRO_CACHE_MAX_AGE_MS = 6 * 24 * 3600 * 1000; // 6 jours (sécurité avant exp HeyGen 7j)
+
+// ============================================================================
+// Vidéo d'introduction (générée 1 fois, cachée 6j)
+// ============================================================================
+
+async function getIntroVideoUrl() {
+  // 1. Essaye d'abord le blob permanent (Vercel Blob, jamais d'expiration)
+  try {
+    const r = await fetch('/api/save-intro-video');
+    if (r.ok) {
+      const data = await r.json();
+      if (data.videoUrl) return data.videoUrl;
+    }
+  } catch (e) { /* fallback ci-dessous */ }
+
+  // 2. Cache localStorage (legacy, garde la compat)
+  try {
+    const raw = localStorage.getItem(INTRO_CACHE_KEY);
+    if (raw) {
+      const cached = JSON.parse(raw);
+      if (cached.url && cached.timestamp && (Date.now() - cached.timestamp < INTRO_CACHE_MAX_AGE_MS)) {
+        return cached.url;
+      }
+    }
+  } catch (e) { /* ignore */ }
+
+  // 3. Génération via HeyGen (fallback ultime, ~1-2 min)
+  showBootLoader('Génération de la vidéo d\'introduction (≈ 1 min)…');
+  try {
+    const r = await fetch('/api/heygen-generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: INTRO_TEXT }),
+    });
+    const data = await r.json();
+    if (!r.ok || !data.videoId) throw new Error(data.error || 'forkInit failed');
+
+    let url = null;
+    for (let i = 0; i < 60 && !url; i++) {
+      await new Promise(res => setTimeout(res, 4000));
+      setBootLoaderLabel(`Génération en cours (${(i+1)*4}s)…`);
+      const sr = await fetch('/api/heygen-status?videoId=' + encodeURIComponent(data.videoId));
+      const sd = await sr.json();
+      if (sd.status === 'completed' && sd.videoUrl) url = sd.videoUrl;
+      if (sd.status === 'failed') throw new Error('génération échouée');
+    }
+    if (!url) throw new Error('timeout génération intro');
+
+    // Sauvegarde aussi en blob permanent pour les prochains visiteurs
+    try {
+      await fetch('/api/save-intro-video', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ videoId: data.videoId }),
+      });
+    } catch (e) { /* non bloquant */ }
+
+    localStorage.setItem(INTRO_CACHE_KEY, JSON.stringify({ url, timestamp: Date.now() }));
+    return url;
+  } catch (e) {
+    console.warn('Intro video failed:', e);
+    return null;
+  } finally {
+    hideBootLoader();
+  }
+}
+
+function showBootLoader(label) {
+  document.getElementById('boot-loader-label').textContent = label || 'Chargement…';
+  document.getElementById('boot-loader').classList.add('show');
+}
+function setBootLoaderLabel(label) {
+  document.getElementById('boot-loader-label').textContent = label;
+}
+function hideBootLoader() {
+  document.getElementById('boot-loader').classList.remove('show');
+}
+
+// ============================================================================
+// Chargement de la config démo
+// ============================================================================
+
+async function loadDemo(data) {
+  if (!data || !Array.isArray(data.steps) || data.steps.length === 0) {
+    alert('Démo invalide : pas de "steps" dans le JSON.');
+    return;
+  }
+  demo = data;
+  pickStep = 0;
+  attempts = 0;
+  totalScore = 0;
+  attemptsByPhase = {};
+  wrongClicks = [];
+  stepsByPhase = {};
+  // Pré-calcule le nb d'étapes interactives par phase (pour seuils badges)
+  for (const s of (data.steps || [])) {
+    if (s.isLast || !(s.choices && s.choices.length)) continue;
+    const ph = s.phase || '?';
+    stepsByPhase[ph] = (stepsByPhase[ph] || 0) + 1;
+    attemptsByPhase[ph] = 0;
+  }
+  startTime = Date.now();
+  document.getElementById('empty-state').style.display = 'none';
+  document.getElementById('end-screen').classList.remove('show');
+  hideFeedback();
+  if (demo.title) document.title = demo.title;
+  if (demo.branding && demo.branding.logo) {
+    document.getElementById('brand-label').innerHTML = '<span class="crest">⚜</span> ' + escapeHtml(demo.branding.logo);
+  }
+  document.getElementById('btn-share').style.display = demo._isLocal ? '' : 'none';
+
+  buildStepTimeline();
+  updateScoreDisplay();
+
+  // 1. Affiche les boutons Yes/No IMMÉDIATEMENT (pas de blocage si la vidéo intro plante)
+  showAdvisorPrompt();
+  // 2. Charge l'intro et la joue en parallèle (décoratif, n'attend pas)
+  getIntroVideoUrl().then(url => {
+    if (url) playVideoOnce(url, { caption: INTRO_TEXT });
+  }).catch(() => { /* ignore */ });
+}
+
+function showAdvisorPrompt() {
+  // Mode vidéo : on garde la vidéo intro visible avec les boutons Yes/No par-dessus
+  setMode('video');
+  const grid = document.getElementById('choices-grid');
+  const question = document.getElementById('question-label');
+  question.textContent = 'Êtes-vous prêt(e) ?';
+  grid.innerHTML = `
+    <button class="choice advisor-yes" id="advisor-yes" style="grid-column: 1 / -1; text-align:center; box-sizing: border-box; background: rgba(184,134,11,0.15); border-color: rgba(184,134,11,0.5); font-weight:700;">
+      <span style="font-size: 18px; margin-right: 8px;">✓</span>
+      <span class="text">Oui, lançons la simulation</span>
+    </button>
+    <button class="choice advisor-no" id="advisor-no" style="grid-column: 1 / -1; text-align:center; box-sizing: border-box; background: rgba(120,90,40,0.08);">
+      <span style="font-size: 16px; margin-right: 8px;">✕</span>
+      <span class="text">Non, pas maintenant</span>
+    </button>
+  `;
+  document.getElementById('advisor-yes').addEventListener('click', () => {
+    showChoicesForCurrentStep();
+  });
+  document.getElementById('advisor-no').addEventListener('click', () => {
+    showAdvisorGoodbye();
+  });
+}
+
+function showAdvisorGoodbye() {
+  document.getElementById('video-frame').innerHTML = `
+    <div class="placeholder">
+      <div class="label">À bientôt</div>
+      <div class="text">"Pas de souci, à très vite. Reviens quand tu veux pour t'entraîner avec nos clients."</div>
+    </div>
+  `;
+  const grid = document.getElementById('choices-grid');
+  const question = document.getElementById('question-label');
+  question.textContent = '';
+  grid.innerHTML = `
+    <button class="choice advisor-yes" id="advisor-restart" style="grid-column: 1 / -1; text-align:center; box-sizing: border-box; background: rgba(184,134,11,0.15); border-color: rgba(184,134,11,0.5); font-weight:700;">
+      <span style="font-size: 18px; margin-right: 8px;">↻</span>
+      <span class="text">Recommencer</span>
+    </button>
+  `;
+  document.getElementById('advisor-restart').addEventListener('click', () => {
+    if (demo) loadDemo(demo);
+  });
+}
+
+function buildStepTimeline() {
+  const tl = document.getElementById('step-timeline');
+  tl.innerHTML = '';
+  const interactiveSteps = demo.steps.filter(s => !s.isLast && (s.choices && s.choices.length));
+  for (let i = 0; i < interactiveSteps.length; i++) {
+    const s = interactiveSteps[i];
+    // Utilise phaseLabel calculé côté viewer (ex: "Découverte 1", "Showcase 2"). Fallback: phase brute.
+    const lbl = s.phaseLabel || s.phase || '?';
+    const node = document.createElement('div');
+    node.className = 'step-node';
+    node.dataset.stepIdx = i;
+    node.innerHTML = `<div class="dot"></div><div class="lbl">${escapeHtml(lbl)}</div>`;
+    tl.appendChild(node);
+    if (i < interactiveSteps.length) {
+      const line = document.createElement('div');
+      line.className = 'step-line';
+      tl.appendChild(line);
+    }
+  }
+  const finalNode = document.createElement('div');
+  finalNode.className = 'step-node';
+  finalNode.dataset.stepIdx = interactiveSteps.length;
+  finalNode.innerHTML = `<div class="dot"></div><div class="lbl">Conclusion</div>`;
+  tl.appendChild(finalNode);
+  updateStepTimeline();
+}
+
+function updateStepTimeline() {
+  if (!demo) return;
+  const nodes = document.querySelectorAll('.step-node');
+  const lines = document.querySelectorAll('.step-line');
+  nodes.forEach((el, i) => {
+    el.classList.remove('done', 'current');
+    if (i < pickStep) el.classList.add('done');
+    else if (i === pickStep) el.classList.add('current');
+  });
+  lines.forEach((el, i) => el.classList.toggle('done', i < pickStep));
+  // Version mobile compacte
+  const interactive = (demo.steps || []).filter(s => !s.isLast && s.choices && s.choices.length);
+  const total = interactive.length;
+  const cur = Math.min(pickStep, total - 1);
+  const curStep = interactive[cur] || interactive[0];
+  if (curStep) {
+    const phaseLabel = curStep.phaseLabel || curStep.phase || '?';
+    const isOnFinal = pickStep >= total;
+    const mobilePhase = document.getElementById('mobile-current-phase');
+    const mobileProgress = document.getElementById('mobile-current-progress');
+    if (isOnFinal) {
+      if (mobilePhase) mobilePhase.textContent = 'Conclusion';
+      if (mobileProgress) mobileProgress.textContent = '';
+    } else {
+      if (mobilePhase) mobilePhase.textContent = phaseLabel;
+      if (mobileProgress) mobileProgress.textContent = `Étape ${cur + 1}/${total}`;
+    }
+  }
+}
+
+async function tryLoadFromQuery() {
+  const params = new URLSearchParams(location.search);
+  let slug = params.get('slug');
+  const configUrl = params.get('config');
+  const source = params.get('source');
+  // Fallback : URL /play/<slug> (rewrite Vercel côté serveur, pas visible en query)
+  if (!slug) {
+    const m = location.pathname.match(/^\/play\/([^/?]+)/);
+    if (m) slug = decodeURIComponent(m[1]);
+  }
+  try {
+    if (source === 'local') {
+      const raw = localStorage.getItem('lms:tempDemo');
+      if (!raw) { alert('Aucune démo locale en attente.'); return; }
+      const data = JSON.parse(raw);
+      data._isLocal = true;
+      await loadDemo(data);
+      return;
+    }
+    if (slug) {
+      const r = await fetch('/api/save-demo?slug=' + encodeURIComponent(slug));
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({}));
+        throw new Error(err.error || 'HTTP ' + r.status);
+      }
+      const data = await r.json();
+      const cfg = data.demo;
+      if (data.brand) cfg.branding = Object.assign({}, cfg.branding, { logo: data.brand });
+      if (data.scenarioTitle) cfg.title = `${data.brand} — ${data.scenarioTitle}`;
+      if (data.productName && !cfg.productName) cfg.productName = data.productName;
+      cfg._slug = slug;
+      cfg._websiteUrl = data.websiteUrl;
+      cfg._isLocal = false;
+      await loadDemo(cfg);
+      return;
+    }
+    if (configUrl) {
+      const r = await fetch(configUrl);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const data = await r.json();
+      data._isLocal = true;
+      await loadDemo(data);
+      return;
+    }
+  } catch (e) {
+    console.error('Échec chargement config :', e);
+    alert('Impossible de charger la config : ' + e.message);
+  }
+}
+
+document.getElementById('demo-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    data._isLocal = true;
+    await loadDemo(data);
+  } catch (err) {
+    alert('JSON invalide : ' + err.message);
+  }
+});
+
+// ============================================================================
+// Lecture vidéo (Promise-based)
+// ============================================================================
+
+// État global du son (par défaut : son activé)
+let isMuted = false;
+
+// Prénom de l'apprenant (saisi à l'écran d'accueil)
+let userFirstName = '';
+const STORAGE_KEY_FIRST_NAME = 'mg_user_first_name';
+
+function showWelcomeForm() {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('welcome-overlay');
+    const input = document.getElementById('welcome-input');
+    const btn = document.getElementById('welcome-submit');
+    try { input.value = localStorage.getItem(STORAGE_KEY_FIRST_NAME) || ''; } catch (e) {}
+    overlay.classList.add('show');
+    setTimeout(() => input.focus(), 200);
+
+    const submit = () => {
+      const raw = (input.value || '').trim();
+      if (raw.length < 2) {
+        input.classList.add('shake');
+        setTimeout(() => input.classList.remove('shake'), 400);
+        return;
+      }
+      userFirstName = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
+      try { localStorage.setItem(STORAGE_KEY_FIRST_NAME, userFirstName); } catch (e) {}
+      overlay.classList.remove('show');
+      resolve();
+    };
+    btn.onclick = submit;
+    input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } };
+  });
+}
+
+// Bascule entre l'affichage vidéo et l'affichage des choix uniquement
+function setMode(mode) {
+  const main = document.querySelector('main');
+  if (!main) return;
+  if (mode === 'choices') {
+    main.classList.add('choices-only');
+    // Pause la vidéo en cours pour couper le son si elle joue encore
+    const v = document.querySelector('#video-frame video');
+    if (v) { try { v.pause(); } catch (e) {} }
+  } else {
+    main.classList.remove('choices-only');
+  }
+}
+
+function playVideoOnce(url, opts) {
+  return new Promise((resolve) => {
+    const frame = document.getElementById('video-frame');
+    if (!url) { resolve(); return; }
+    setMode('video');
+    frame.classList.remove('success');
+    if (opts && opts.success) frame.classList.add('success');
+    const captionText = (opts && opts.caption) ? escapeHtml(opts.caption) : '';
+    const captionHtml = captionText
+      ? `<div class="video-caption" id="video-caption"><span class="speaker">Sophie</span>${captionText}</div>`
+      : '';
+    const muteBtnHtml = `<button class="video-mute-btn" id="video-mute-btn" type="button" aria-label="Activer ou couper le son">${isMuted ? '🔇' : '🔊'}</button>`;
+    frame.innerHTML = `<video autoplay playsinline preload="auto" src="${escapeHtml(url)}"></video>${captionHtml}${muteBtnHtml}`;
+    const v = frame.querySelector('video');
+    const cap = frame.querySelector('#video-caption');
+    const muteBtn = frame.querySelector('#video-mute-btn');
+
+    function updateMuteUI() {
+      muteBtn.textContent = v.muted ? '🔇' : '🔊';
+      muteBtn.classList.toggle('muted', v.muted);
+      if (cap) cap.classList.toggle('show', v.muted);
+    }
+
+    v.muted = isMuted;
+    updateMuteUI();
+
+    muteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      v.muted = !v.muted;
+      isMuted = v.muted;
+      updateMuteUI();
+      if (!v.muted && v.paused) { v.play().catch(() => {}); }
+    });
+
+    let resolved = false;
+    const done = () => { if (!resolved) { resolved = true; resolve(); } };
+    v.addEventListener('loadeddata', updateMuteUI);
+    v.addEventListener('playing', updateMuteUI);
+    v.addEventListener('ended', done);
+    v.addEventListener('error', () => {
+      frame.innerHTML = `<div class="placeholder"><div class="label">Vidéo indisponible</div><div class="text">"${escapeHtml((opts && opts.fallbackText) || '—')}"</div></div>`;
+      setTimeout(done, 1500);
+    });
+
+    // Tentative autoplay ; si bloqué (mobile sans interaction), retombe en muted automatiquement
+    v.play().catch(() => {
+      v.muted = true;
+      isMuted = true;
+      updateMuteUI();
+      v.play().catch(() => {});
+    });
+
+    // Sécurité : si la vidéo dure plus de 60s sans 'ended', on continue
+    setTimeout(done, 60000);
+  });
+}
+
+// ============================================================================
+// Affichage des choix
+// ============================================================================
+
+function showChoicesForCurrentStep() {
+  if (!demo || pickStep >= demo.steps.length) {
+    showEnd();
+    return;
+  }
+  const step = demo.steps[pickStep];
+  if (step.isLast || !(step.choices && step.choices.length)) {
+    // Step final sans choix : juste sa vidéo puis fin
+    playVideoOnce(step.videoUrl, { fallbackText: step.avatarText, caption: step.avatarText, success: true }).then(() => showEnd());
+    return;
+  }
+  // Mode choix : on cache la vidéo, les 4 propositions prennent l'écran
+  setMode('choices');
+  updateStepTimeline();
+  updateScoreDisplay();
+  const grid = document.getElementById('choices-grid');
+  const question = document.getElementById('question-label');
+  question.textContent = 'Que répondez-vous ?';
+  grid.innerHTML = '';
+  for (const c of step.choices) {
+    const btn = document.createElement('button');
+    btn.className = 'choice';
+    btn.dataset.index = c.index;
+    btn.dataset.valid = c.isValid ? '1' : '0';
+    btn.dataset.score = c.score;
+    btn.dataset.comment = c.comment || '';
+    btn.dataset.text = c.text || '';
+    btn.innerHTML = `<span class="text">${escapeHtml(c.text || '')}</span>`;
+    btn.addEventListener('click', onChoice);
+    grid.appendChild(btn);
+  }
+  setupChoicesCarouselIndicator();
+}
+
+function setupChoicesCarouselIndicator() {
+  const grid = document.getElementById('choices-grid');
+  const ind = document.getElementById('choices-indicator');
+  const choices = grid.querySelectorAll('.choice');
+  ind.innerHTML = '';
+  if (choices.length <= 1 || window.innerWidth > 720) return;
+  const total = choices.length;
+  ind.innerHTML = `<span class="arrow left dim">‹</span><span class="pos">1/${total}</span><span class="arrow right">›</span>`;
+  const posEl = ind.querySelector('.pos');
+  const leftArrow = ind.querySelector('.arrow.left');
+  const rightArrow = ind.querySelector('.arrow.right');
+  const updateActive = () => {
+    const scrollLeft = grid.scrollLeft;
+    const cardWidth = grid.firstChild ? grid.firstChild.offsetWidth + 12 : 1;
+    const idx = Math.max(0, Math.min(total - 1, Math.round(scrollLeft / cardWidth)));
+    posEl.textContent = `${idx + 1}/${total}`;
+    leftArrow.classList.toggle('dim', idx === 0);
+    rightArrow.classList.toggle('dim', idx === total - 1);
+  };
+  grid.removeEventListener('scroll', grid._indListener || (() => {}));
+  grid._indListener = updateActive;
+  grid.addEventListener('scroll', updateActive, { passive: true });
+}
+
+function updateScoreDisplay() {
+  const setText = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setText('score-display', totalScore);
+  setText('attempts-display', attempts);
+  if (demo) {
+    const interactive = demo.steps.filter(s => !s.isLast && s.choices && s.choices.length).length;
+    setText('step-display', Math.min(pickStep + 1, interactive));
+    setText('step-total', interactive);
+  }
+}
+
+// ============================================================================
+// Animations de succès
+// ============================================================================
+
+function spawnStarBurst(originEl) {
+  const rect = originEl.getBoundingClientRect();
+  const cx = rect.left + rect.width / 2;
+  const cy = rect.top + rect.height / 2;
+  const stars = ['✦', '✧', '★', '⋆', '✯'];
+  for (let i = 0; i < 12; i++) {
+    const s = document.createElement('div');
+    s.className = 'star-particle';
+    s.textContent = stars[i % stars.length];
+    s.style.left = cx + 'px';
+    s.style.top = cy + 'px';
+    const angle = (i / 12) * Math.PI * 2;
+    const dist = 100 + Math.random() * 80;
+    s.style.setProperty('--dx', Math.cos(angle) * dist + 'px');
+    s.style.setProperty('--dy', (Math.sin(angle) * dist - 40) + 'px');
+    s.style.fontSize = (14 + Math.random() * 12) + 'px';
+    document.body.appendChild(s);
+    setTimeout(() => s.remove(), 1300);
+  }
+}
+
+function spawnCrestBurst() {
+  const c = document.createElement('div');
+  c.className = 'crest-burst';
+  c.textContent = '⚜';
+  document.body.appendChild(c);
+  setTimeout(() => c.remove(), 1500);
+}
+
+function spawnSuccessToast(text) {
+  const t = document.createElement('div');
+  t.className = 'success-toast';
+  t.textContent = text;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 1700);
+}
+
+function celebrateSuccess(originBtn) {
+  spawnStarBurst(originBtn);
+  spawnCrestBurst();
+  spawnSuccessToast('Excellent ✦');
+}
+
+// Petit "ding" doré quand on choisit la bonne réponse
+function playSuccessSound() {
+  try {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    const ctx = new Ctx();
+    const now = ctx.currentTime;
+    const o1 = ctx.createOscillator();
+    const o2 = ctx.createOscillator();
+    const g = ctx.createGain();
+    o1.type = 'sine'; o2.type = 'sine';
+    o1.frequency.setValueAtTime(880, now);   // A5
+    o2.frequency.setValueAtTime(1318.5, now); // E6 (quinte)
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.18, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.45);
+    o1.connect(g); o2.connect(g); g.connect(ctx.destination);
+    o1.start(now); o2.start(now);
+    o1.stop(now + 0.5); o2.stop(now + 0.5);
+    setTimeout(() => { try { ctx.close(); } catch (e) {} }, 700);
+  } catch (e) { /* ignore */ }
+}
+
+// ============================================================================
+// Gestion d'un clic sur un choix
+// ============================================================================
+
+async function onChoice(e) {
+  const btn = e.currentTarget;
+  attempts++;
+  updateScoreDisplay();
+  const isValid = btn.dataset.valid === '1';
+  const score = parseInt(btn.dataset.score, 10) || 0;
+  const comment = btn.dataset.comment || '';
+  const text = btn.dataset.text || '';
+
+  // Tracking par phase (pour les badges)
+  const currentStep = demo && demo.steps[pickStep];
+  const currentPhase = (currentStep && currentStep.phase) || '?';
+  attemptsByPhase[currentPhase] = (attemptsByPhase[currentPhase] || 0) + 1;
+  if (!isValid) {
+    wrongClicks.push({
+      step: pickStep + 1,
+      phase: currentPhase,
+      choiceIdx: parseInt(btn.dataset.index, 10),
+      score, comment, choiceText: text,
+    });
+  }
+
+  if (isValid) {
+    totalScore += score;
+    updateScoreDisplay();
+    btn.classList.add('valid-flash');
+    document.getElementById('video-frame').classList.add('success');
+    hideFeedback();
+    document.querySelectorAll('.choice').forEach((b) => b.disabled = true);
+    playSuccessSound();
+    celebrateSuccess(btn);
+    // Petit délai pour voir l'animation puis on enchaîne sur la prochaine vidéo
+    await new Promise(res => setTimeout(res, 900));
+    advanceAfterCorrect();
+  } else {
+    btn.classList.add('invalid');
+    showFeedback(text, score, comment);
+    setTimeout(() => btn.classList.remove('invalid'), 400);
+  }
+}
+
+async function advanceAfterCorrect() {
+  // L'utilisateur vient de cocher la bonne réponse pour pickStep.
+  // On passe à pickStep+1 : on joue sa vidéo, puis on affiche ses choix.
+  pickStep++;
+  if (pickStep >= demo.steps.length) {
+    showEnd();
+    return;
+  }
+  const step = demo.steps[pickStep];
+  // Si l'étape suivante est la conclusion (isLast / sans choix), on délègue directement
+  // à showChoicesForCurrentStep qui jouera la vidéo une seule fois puis showEnd.
+  if (step.isLast || !(step.choices && step.choices.length)) {
+    showChoicesForCurrentStep();
+    return;
+  }
+  // Joue la vidéo de cette étape (la "réaction" de Sophie au choix précédent)
+  await playVideoOnce(step.videoUrl, { fallbackText: step.avatarText, caption: step.avatarText });
+  showChoicesForCurrentStep();
+}
+
+function showFeedback(text, score, comment) {
+  document.getElementById('feedback-response').textContent = text || '—';
+  document.getElementById('feedback-why').textContent = comment || 'Cette réponse n\'est pas la plus adaptée à ce moment du parcours.';
+  document.getElementById('feedback-score').textContent = score + '/5';
+  document.getElementById('feedback-modal').classList.add('show');
+}
+function hideFeedback() {
+  document.getElementById('feedback-modal').classList.remove('show');
+}
+
+document.getElementById('feedback-retry').addEventListener('click', hideFeedback);
+document.getElementById('feedback-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'feedback-modal') hideFeedback();
+});
+
+// ============================================================================
+// Écran de fin
+// ============================================================================
+
+function showEnd() {
+  hideFeedback();
+  // Personnalisation avec le prénom
+  const heroTitle = document.getElementById('end-hero-title');
+  if (heroTitle) heroTitle.textContent = userFirstName ? `🎉 Bravo ${userFirstName} !` : '🎉 Bravo !';
+  // Stats globales
+  const totalSteps = (demo.steps || []).filter(s => !s.isLast && s.choices && s.choices.length).length;
+  const totalErrors = Math.max(0, attempts - totalSteps);
+  document.getElementById('end-attempts').textContent = attempts;
+  document.getElementById('end-errors').textContent = totalErrors;
+  document.getElementById('end-score').textContent = totalScore;
+  const dur = Math.round((Date.now() - startTime) / 1000);
+  document.getElementById('end-time').textContent = dur < 60 ? dur + 's' : Math.floor(dur/60) + 'm' + (dur%60) + 's';
+
+  // Badge produit
+  const productName = getProductName();
+  const productBadge = computeProductBadge(totalErrors, productName);
+  renderProductBadge(productBadge);
+
+  // Maîtrise par phase
+  renderPhaseList();
+
+  // 3 tips de vente
+  renderEndTips();
+
+  // Badges manquants
+  renderMissingBadges(totalErrors, productName);
+
+  document.getElementById('end-screen').classList.add('show');
+  document.getElementById('end-screen').scrollTop = 0;
+  setTimeout(() => spawnCrestBurst(), 200);
+}
+
+function getProductName() {
+  if (!demo) return 'le produit';
+  if (demo.productName) return demo.productName;
+  // Fallback : tenter d'extraire un produit en **gras** dans les textes
+  const textsAll = (demo.steps || []).map(s => (s.avatarText || '') + ' ' + (s.bilan || '')).join(' ');
+  const matches = textsAll.match(/\*\*([A-Z][\wÀ-ÿ'-]*(?:\s+[A-Z][\wÀ-ÿ'-]*)*)\*\*/g) || [];
+  // Compte les occurrences pour prendre le plus fréquent
+  const counts = {};
+  for (const m of matches) {
+    const name = m.replace(/\*\*/g, '').trim();
+    counts[name] = (counts[name] || 0) + 1;
+  }
+  let best = null, bestCount = 0;
+  for (const k of Object.keys(counts)) {
+    if (counts[k] > bestCount) { best = k; bestCount = counts[k]; }
+  }
+  return best || 'le produit';
+}
+
+function renderProductBadge(badge) {
+  const el = document.getElementById('end-product-badge');
+  if (badge.tier === 0) {
+    el.classList.add('no-badge');
+    el.innerHTML = `
+      <div class="icon-large" style="opacity:0.4">🏅</div>
+      <div class="name">Pas de badge produit</div>
+      <div class="info">Tu as fait ${badge.totalErrors} erreurs. Réessaie pour décrocher un badge ${badge.productName}.</div>
+    `;
+    return;
+  }
+  el.classList.remove('no-badge');
+  el.innerHTML = `
+    <div class="icon-large">${badge.icon}</div>
+    <div class="name">${escapeHtml(badge.name)}</div>
+    <div class="label">${badge.label}</div>
+    <div class="info">${badge.totalErrors === 0 ? 'Parfait — aucune erreur !' : badge.totalErrors + ' erreur' + (badge.totalErrors > 1 ? 's' : '') + ' au total'}</div>
+  `;
+}
+
+function renderPhaseList() {
+  const list = document.getElementById('end-phase-list');
+  list.innerHTML = '';
+  // On itère les phases dans l'ordre où elles apparaissent dans le parcours
+  const phasesInOrder = [];
+  for (const s of (demo.steps || [])) {
+    if (s.isLast) continue;
+    const ph = s.phase || '?';
+    if (!phasesInOrder.includes(ph)) phasesInOrder.push(ph);
+  }
+  for (const phase of phasesInOrder) {
+    const att = attemptsByPhase[phase] || 0;
+    const stp = stepsByPhase[phase] || 0;
+    const badge = computePhaseBadge(phase, att, stp);
+    const errors = badge.errors;
+    const row = document.createElement('div');
+    row.className = 'phase-row' + (badge.tier === 0 ? ' no-badge' : '');
+    if (badge.tier === 0) {
+      row.innerHTML = `
+        <div class="phase-name">${escapeHtml(phase)}</div>
+        <div class="phase-stats">${att} tentative${att > 1 ? 's' : ''} · ${errors} erreur${errors > 1 ? 's' : ''}</div>
+        <div class="phase-badge" style="color:#8a7a60">— pas de badge</div>
+      `;
+    } else {
+      row.innerHTML = `
+        <div class="phase-name">${escapeHtml(phase)}</div>
+        <div class="phase-stats">${att} tentative${att > 1 ? 's' : ''} · ${errors} erreur${errors > 1 ? 's' : ''}</div>
+        <div class="phase-badge"><span class="icon">${badge.icon}</span>${escapeHtml(badge.name)}</div>
+      `;
+    }
+    list.appendChild(row);
+  }
+}
+
+function renderEndTips() {
+  const list = document.getElementById('end-tips-list');
+  list.innerHTML = '';
+  // Sélectionne 3 wrong clicks avec les pires scores (ou les + représentatifs)
+  // Trie par score asc (les pires en premier), dédoublonne par phase si possible
+  const sorted = [...wrongClicks].sort((a, b) => a.score - b.score);
+  const picked = [];
+  const phasesUsed = new Set();
+  for (const w of sorted) {
+    if (picked.length >= 3) break;
+    if (!phasesUsed.has(w.phase)) {
+      picked.push(w);
+      phasesUsed.add(w.phase);
+    }
+  }
+  // Si on a moins de 3, on complète avec les autres wrong clicks
+  for (const w of sorted) {
+    if (picked.length >= 3) break;
+    if (!picked.includes(w)) picked.push(w);
+  }
+  if (picked.length === 0) {
+    list.innerHTML = `<div class="tip-item"><div class="icon">💯</div><div class="body"><strong>Parfait !</strong> Tu as enchaîné le parcours sans erreur. Continue à privilégier l'écoute active et les questions ouvertes.</div></div>`;
+    return;
+  }
+  for (const w of picked) {
+    const item = document.createElement('div');
+    item.className = 'tip-item';
+    item.innerHTML = `
+      <div class="icon">💡</div>
+      <div class="body">
+        ${escapeHtml(w.comment)}
+        <div class="source">Phase ${escapeHtml(w.phase)} · choix au score ${w.score}/5</div>
+      </div>
+    `;
+    list.appendChild(item);
+  }
+}
+
+function renderMissingBadges(totalErrors, productName) {
+  const list = document.getElementById('missing-list');
+  list.innerHTML = '';
+  const items = [];
+
+  // Badge produit suivant
+  const currentTier = BADGE_TIER_BY_ERRORS(totalErrors);
+  if (currentTier < 4) {
+    const nextTier = currentTier + 1;
+    const nextThreshold = nextTier === 4 ? 0 : nextTier === 3 ? 5 : nextTier === 2 ? 10 : 20;
+    items.push({
+      icon: TIER_ICONS[nextTier],
+      name: `${PRODUCT_BADGE_NAMES[nextTier - 1]} ${productName}`,
+      req: nextTier === 4 ? 'parcours parfait (0 erreur)' : `< ${nextThreshold} erreurs`,
+    });
+  }
+
+  // Badges par phase (niveaux non atteints)
+  const phasesInOrder = [];
+  for (const s of (demo.steps || [])) {
+    if (s.isLast) continue;
+    const ph = s.phase || '?';
+    if (!phasesInOrder.includes(ph)) phasesInOrder.push(ph);
+  }
+  for (const phase of phasesInOrder) {
+    const att = attemptsByPhase[phase] || 0;
+    const stp = stepsByPhase[phase] || 0;
+    const errors = Math.max(0, att - stp);
+    const tier = BADGE_TIER_BY_ERRORS(errors);
+    const names = PHASE_BADGE_NAMES[phase] || PHASE_BADGE_NAMES['Découverte'];
+    if (tier < 4) {
+      const nextTier = tier + 1;
+      const nextThreshold = nextTier === 4 ? 0 : nextTier === 3 ? 5 : nextTier === 2 ? 10 : 20;
+      items.push({
+        icon: TIER_ICONS[nextTier],
+        name: `${names[nextTier - 1]} (${phase})`,
+        req: nextTier === 4 ? 'phase parfaite (0 erreur)' : `< ${nextThreshold} erreurs sur cette phase`,
+      });
+    }
+  }
+
+  if (items.length === 0) {
+    list.innerHTML = `<div class="missing-item"><div class="icon">✨</div><div class="name">Tu as débloqué tous les badges Expert !</div></div>`;
+    return;
+  }
+  for (const it of items) {
+    const div = document.createElement('div');
+    div.className = 'missing-item';
+    div.innerHTML = `
+      <div class="icon">${it.icon}</div>
+      <div class="name">${escapeHtml(it.name)}</div>
+      <div class="req">${escapeHtml(it.req)}</div>
+    `;
+    list.appendChild(div);
+  }
+}
+
+document.getElementById('missing-toggle').addEventListener('click', () => {
+  const list = document.getElementById('missing-list');
+  const btn = document.getElementById('missing-toggle');
+  list.classList.toggle('show');
+  btn.textContent = list.classList.contains('show') ? 'Masquer les badges manquants ▴' : 'Voir les badges manquants ▾';
+});
+
+document.getElementById('end-restart').addEventListener('click', () => {
+  if (!demo) return;
+  loadDemo(demo);
+});
+
+// ============================================================================
+// Partage
+// ============================================================================
+
+function slugify(s) {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
+function openShareModal() {
+  if (!demo) return;
+  const m = document.getElementById('share-modal');
+  m.classList.add('open');
+  document.getElementById('share-result').classList.remove('show');
+  const brand = document.getElementById('share-brand');
+  const title = document.getElementById('share-title');
+  const slug = document.getElementById('share-slug');
+  const ws = document.getElementById('share-website');
+  const product = document.getElementById('share-product');
+  if (!brand.value) brand.value = (demo.branding && demo.branding.logo) ? String(demo.branding.logo).split('·')[0].replace('⚜','').trim() : 'Hermès';
+  if (!title.value) title.value = demo.title || `Parcours ${demo.steps.length} étapes`;
+  if (!slug.value) slug.value = slugify(`${brand.value}-${title.value}`);
+  if (!ws.value) ws.value = demo._websiteUrl || '';
+  if (!product.value) product.value = demo.productName || getProductName() || '';
+  const update = () => { slug.value = slugify(`${brand.value}-${title.value}`); };
+  brand.oninput = update; title.oninput = update;
+}
+function closeShareModal() { document.getElementById('share-modal').classList.remove('open'); }
+
+async function saveDemoAndShare() {
+  if (!demo) return;
+  const brand = document.getElementById('share-brand').value.trim();
+  const title = document.getElementById('share-title').value.trim();
+  const websiteUrl = document.getElementById('share-website').value.trim();
+  const productName = document.getElementById('share-product').value.trim();
+  let slug = slugify(document.getElementById('share-slug').value.trim());
+  document.getElementById('share-slug').value = slug;
+  if (!brand || !title || !slug) return alert('Marque, titre et slug requis');
+  const btn = document.getElementById('share-save');
+  btn.disabled = true; btn.textContent = '⏳ Enregistrement…';
+  try {
+    const cleanDemo = JSON.parse(JSON.stringify(demo));
+    delete cleanDemo._isLocal; delete cleanDemo._slug; delete cleanDemo._websiteUrl;
+    if (productName) cleanDemo.productName = productName;
+    const r = await fetch('/api/save-demo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug, brand, scenarioTitle: title, websiteUrl: websiteUrl || null, productName: productName || null, demo: cleanDemo }),
+    });
+    const data = await r.json();
+    if (!r.ok) { alert('Échec : ' + (data.error || 'erreur inconnue')); return; }
+    document.getElementById('share-result-url').value = data.playUrl;
+    document.getElementById('share-result').classList.add('show');
+    try { await navigator.clipboard.writeText(data.playUrl); } catch (e) {}
+  } catch (e) {
+    alert('Erreur réseau : ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = '🔗 Générer le lien';
+  }
+}
+
+document.getElementById('btn-share').addEventListener('click', openShareModal);
+document.getElementById('share-cancel').addEventListener('click', closeShareModal);
+document.getElementById('share-save').addEventListener('click', saveDemoAndShare);
+document.getElementById('share-copy').addEventListener('click', async () => {
+  const u = document.getElementById('share-result-url').value;
+  try { await navigator.clipboard.writeText(u); } catch (e) {}
+});
+document.getElementById('share-open').addEventListener('click', () => {
+  const u = document.getElementById('share-result-url').value;
+  if (u) window.open(u, '_blank');
+});
+
+// ============================================================================
+// Helpers
+// ============================================================================
+
+function escapeHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/[&<>"']/g, (ch) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[ch]));
+}
+
+// ============================================================================
+// Boot
+// ============================================================================
+
+(async () => {
+  await showWelcomeForm();
+  tryLoadFromQuery();
+})();
+</script>
+
+</body>
+</html>

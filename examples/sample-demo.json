@@ -1,0 +1,64 @@
+{
+  "scenarioId": "demo-test",
+  "title": "Démo de test — Hermès Sophie",
+  "branding": { "logo": "Hermès" },
+  "productName": "Musc Pallida",
+  "steps": [
+    {
+      "step": 1,
+      "nodeId": "n1",
+      "phase": "Découverte",
+      "phaseLabel": "Découverte 1",
+      "avatarText": "",
+      "videoUrl": null,
+      "isLast": false,
+      "choices": [
+        { "index": 1, "text": "Bonjour Madame, bienvenue chez Hermès. Souhaitez-vous découvrir aujourd'hui quels parfums comptent parmi nos meilleures ventes ?", "score": 5, "isValid": true, "comment": "Ouverture parfaite, accueil chaleureux et invitation à la découverte." },
+        { "index": 2, "text": "Bonjour, je peux vous aider ?", "score": 2, "isValid": false, "comment": "Trop générique, manque la signature Hermès." },
+        { "index": 3, "text": "Voilà nos best-sellers, regardez.", "score": 0, "isValid": false, "comment": "Pas d'accueil, on saute directement à la vente." },
+        { "index": 4, "text": "Bonjour, asseyez-vous, je vais chercher un conseiller.", "score": 4, "isValid": false, "comment": "Polite mais évite la prise en charge directe." }
+      ]
+    },
+    {
+      "step": 2,
+      "nodeId": "n2",
+      "phase": "Découverte",
+      "phaseLabel": "Découverte 2",
+      "avatarText": "Oui, volontiers. Je cherche un parfum que je pourrais porter au quotidien, quelque chose de discret mais raffiné.",
+      "videoUrl": null,
+      "isLast": false,
+      "choices": [
+        { "index": 1, "text": "Pour mieux cerner vos goûts, pourriez-vous me dire si vous utilisez déjà un parfum régulièrement ?", "score": 5, "isValid": true, "comment": "Question d'écoute, parfaite pour approfondir le besoin." },
+        { "index": 2, "text": "Voici notre Eau de Cologne, très discrète.", "score": 2, "isValid": false, "comment": "Saute l'étape de découverte, présente trop vite." },
+        { "index": 3, "text": "Le Musc Pallida est ce qu'il vous faut.", "score": 0, "isValid": false, "comment": "Présentation produit sans découverte préalable." },
+        { "index": 4, "text": "Discret c'est-à-dire ?", "score": 4, "isValid": false, "comment": "Bonne idée de creuser, mais formulation un peu sèche." }
+      ]
+    },
+    {
+      "step": 3,
+      "nodeId": "n3",
+      "phase": "Showcase",
+      "phaseLabel": "Showcase 1",
+      "avatarText": "J'utilise un parfum floral léger en ce moment, mais j'aimerais quelque chose de plus singulier sans être trop intense.",
+      "videoUrl": null,
+      "isLast": false,
+      "choices": [
+        { "index": 1, "text": "Le Musc Pallida pourrait vous correspondre : signature musquée délicate, douce, persistante mais discrète.", "score": 5, "isValid": true, "comment": "Présentation alignée avec le besoin exprimé, mots-clés du produit." },
+        { "index": 2, "text": "Essayez Iris Céladon, c'est notre best-seller.", "score": 2, "isValid": false, "comment": "Best-seller ≠ adapté au besoin spécifique." },
+        { "index": 3, "text": "Tous nos parfums sont singuliers.", "score": 0, "isValid": false, "comment": "Évite la recommandation personnalisée." },
+        { "index": 4, "text": "Voulez-vous sentir plusieurs fragrances ?", "score": 4, "isValid": false, "comment": "OK mais on perd l'opportunité de proposer le bon produit." }
+      ]
+    },
+    {
+      "step": 4,
+      "nodeId": "n4",
+      "phase": "Conclusion",
+      "phaseLabel": "Conclusion",
+      "avatarText": "Je vais le prendre, merci pour vos conseils.",
+      "videoUrl": null,
+      "isLast": true,
+      "choices": [],
+      "bilan": "Vente réussie. Sophie repart avec Musc Pallida, conquise par votre écoute et votre justesse de recommandation."
+    }
+  ]
+}
