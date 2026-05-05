@@ -984,7 +984,7 @@
   </div>
 </div>
 
-<div class="empty" id="empty-state">
+<div class="empty" id="empty-state" style="display:none">
   <div class="card">
     <h2>Démo Hermès Sophie</h2>
     <p>Charge un fichier de démo (<code>demo-*.json</code>) généré depuis le viewer pour démarrer la simulation.</p>
@@ -1307,6 +1307,12 @@ async function tryLoadFromQuery() {
     const m = location.pathname.match(/^\/play\/([^/?]+)/);
     if (m) slug = decodeURIComponent(m[1]);
   }
+  // Si rien à charger : on révèle le formulaire d'upload manuel.
+  // Sinon on le laisse caché (sinon il flashe pendant le fetch ½s).
+  if (!slug && !configUrl && source !== 'local') {
+    document.getElementById('empty-state').style.display = '';
+    return;
+  }
   try {
     if (source === 'local') {
       const raw = localStorage.getItem('lms:tempDemo');
@@ -1343,6 +1349,7 @@ async function tryLoadFromQuery() {
     }
   } catch (e) {
     console.error('Échec chargement config :', e);
+    document.getElementById('empty-state').style.display = '';
     alert('Impossible de charger la config : ' + e.message);
   }
 }
@@ -1484,7 +1491,7 @@ async function swapToVideo(url, { loop = false } = {}) {
   next.loop = loop;
   next.muted = true; // toutes nos vidéos sont muettes (audio externe via <audio id="step-audio">)
 
-  // Attendre qu'on ait au moins la 1re frame
+  // Attendre qu'on ait au moins la métadata + 1re frame décodée
   if (next.readyState < 2) {
     await new Promise((resolve) => {
       const ok = () => { cleanup(); resolve(); };
@@ -1501,17 +1508,35 @@ async function swapToVideo(url, { loop = false } = {}) {
   try { next.currentTime = 0; } catch (e) {}
   try { await next.play(); } catch (e) { /* autoplay bloqué : pas grave, vidéo muette */ }
 
+  // Attendre qu'une frame soit RÉELLEMENT rendue à l'écran avant le crossfade
+  // (loadeddata = décodée, pas forcément peinte). Sans ça, le crossfade démarre
+  // alors que le nouveau layer est encore noir → micro-flash entre 2 vidéos.
+  if ('requestVideoFrameCallback' in next) {
+    await new Promise((resolve) => {
+      const timeout = setTimeout(resolve, 500);
+      try {
+        next.requestVideoFrameCallback(() => { clearTimeout(timeout); resolve(); });
+      } catch (e) { clearTimeout(timeout); resolve(); }
+    });
+  } else {
+    // Fallback Safari < 15.4 : double rAF
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  }
+
   // Cache le placeholder dès la 1re vidéo qui joue
   const ph = document.getElementById('video-placeholder');
   if (ph && !ph.classList.contains('hidden')) ph.classList.add('hidden');
 
-  // Crossfade
+  // Crossfade. NB : on ne pause PAS l'ancien immédiatement — il continue de
+  // jouer (ou affiche sa dernière frame) sous opacity 0 pendant la transition,
+  // ce qui évite tout risque de "frame noire" si le browser libère la frame.
   next.classList.add('active');
   prev.classList.remove('active');
   activeLayer = inactiveId;
 
-  // Pause l'ancien après la fin du fade
-  setTimeout(() => { try { prev.pause(); } catch (e) {} }, 400);
+  // Pause l'ancien bien après la fin du fade (1s pour marge), pour éviter
+  // un éventuel flash si la frame est libérée pendant la transition.
+  setTimeout(() => { try { prev.pause(); } catch (e) {} }, 1000);
 
   return next;
 }
