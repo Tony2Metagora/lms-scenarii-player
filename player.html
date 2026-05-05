@@ -1137,17 +1137,13 @@ async function loadDemo(data) {
   buildStepTimeline();
   updateScoreDisplay();
 
-  // 1. Affiche les boutons Yes/No IMMÉDIATEMENT (pas de blocage si la vidéo intro plante)
+  // Affiche directement la question + boutons Yes/No, sans vidéo d'accueil.
   showAdvisorPrompt();
-  // 2. Charge l'intro et la joue en parallèle (décoratif, n'attend pas)
-  getIntroVideoUrl().then(url => {
-    if (url) playVideoOnce(url, { caption: INTRO_TEXT });
-  }).catch(() => { /* ignore */ });
 }
 
 function showAdvisorPrompt() {
-  // Mode vidéo : on garde la vidéo intro visible avec les boutons Yes/No par-dessus
-  setMode('video');
+  // Mode "choices" : la question + boutons Oui/Non prennent l'écran (pas de vidéo d'accueil).
+  setMode('choices');
   const grid = document.getElementById('choices-grid');
   const question = document.getElementById('question-label');
   question.textContent = 'Êtes-vous prêt(e) ?';
@@ -1372,45 +1368,87 @@ function playVideoOnce(url, opts) {
       ? `<div class="video-caption" id="video-caption"><span class="speaker">Sophie</span>${captionText}</div>`
       : '';
     const muteBtnHtml = `<button class="video-mute-btn" id="video-mute-btn" type="button" aria-label="Activer ou couper le son">${isMuted ? '🔇' : '🔊'}</button>`;
-    frame.innerHTML = `<video autoplay playsinline preload="auto" src="${escapeHtml(url)}"></video>${captionHtml}${muteBtnHtml}`;
+    // Si on a un audioUrl séparé (ElevenLabs), on l'injecte aussi : la vidéo
+    // Seedance est silencieuse, donc on superpose l'audio TTS et on synchronise
+    // sur sa durée. Si pas d'audioUrl, on garde le son natif de la vidéo
+    // (cas vidéo uploadée par l'utilisateur avec son audio intégré).
+    const audioUrl = opts && opts.audioUrl;
+    const audioTag = audioUrl ? `<audio id="video-audio" preload="auto" src="${escapeHtml(audioUrl)}"></audio>` : '';
+    frame.innerHTML = `<video autoplay playsinline preload="auto" src="${escapeHtml(url)}"></video>${audioTag}${captionHtml}${muteBtnHtml}`;
     const v = frame.querySelector('video');
+    const a = audioUrl ? frame.querySelector('#video-audio') : null;
     const cap = frame.querySelector('#video-caption');
     const muteBtn = frame.querySelector('#video-mute-btn');
 
+    // Si on joue un audio externe, la vidéo doit être muette en permanence
+    // (sa piste audio est ignorée — c'est l'audio ElevenLabs qui parle).
+    if (a) v.muted = true;
+
     function updateMuteUI() {
-      muteBtn.textContent = v.muted ? '🔇' : '🔊';
-      muteBtn.classList.toggle('muted', v.muted);
-      if (cap) cap.classList.toggle('show', v.muted);
+      const muted = a ? a.muted : v.muted;
+      muteBtn.textContent = muted ? '🔇' : '🔊';
+      muteBtn.classList.toggle('muted', muted);
+      if (cap) cap.classList.toggle('show', muted);
     }
 
-    v.muted = isMuted;
+    if (a) {
+      a.muted = isMuted;
+    } else {
+      v.muted = isMuted;
+    }
     updateMuteUI();
 
     muteBtn.addEventListener('click', (e) => {
       e.stopPropagation();
-      v.muted = !v.muted;
-      isMuted = v.muted;
+      if (a) {
+        a.muted = !a.muted;
+        isMuted = a.muted;
+      } else {
+        v.muted = !v.muted;
+        isMuted = v.muted;
+      }
       updateMuteUI();
-      if (!v.muted && v.paused) { v.play().catch(() => {}); }
+      if (a && !a.muted && a.paused) { a.play().catch(() => {}); }
+      if (!a && !v.muted && v.paused) { v.play().catch(() => {}); }
     });
 
     let resolved = false;
     const done = () => { if (!resolved) { resolved = true; resolve(); } };
     v.addEventListener('loadeddata', updateMuteUI);
     v.addEventListener('playing', updateMuteUI);
-    v.addEventListener('ended', done);
+    if (a) {
+      // La durée de l'étape est dictée par l'audio (généralement plus longue
+      // que la vidéo Seedance bornée à 15s). Quand l'audio finit, on enchaîne.
+      a.addEventListener('ended', done);
+      a.addEventListener('error', done);
+      // Boucle la vidéo si elle est plus courte que l'audio (mouvement continu).
+      v.addEventListener('ended', () => {
+        try { v.currentTime = 0; v.play().catch(() => {}); } catch (e) {}
+      });
+    } else {
+      v.addEventListener('ended', done);
+    }
     v.addEventListener('error', () => {
       frame.innerHTML = `<div class="placeholder"><div class="label">Vidéo indisponible</div><div class="text">"${escapeHtml((opts && opts.fallbackText) || '—')}"</div></div>`;
       setTimeout(done, 1500);
     });
 
     // Tentative autoplay ; si bloqué (mobile sans interaction), retombe en muted automatiquement
-    v.play().catch(() => {
-      v.muted = true;
-      isMuted = true;
-      updateMuteUI();
-      v.play().catch(() => {});
-    });
+    const playBoth = () => {
+      v.play().catch(() => {
+        v.muted = true;
+        v.play().catch(() => {});
+      });
+      if (a) {
+        a.play().catch(() => {
+          a.muted = true;
+          isMuted = true;
+          updateMuteUI();
+          a.play().catch(() => {});
+        });
+      }
+    };
+    playBoth();
 
     // Sécurité : si la vidéo dure plus de 60s sans 'ended', on continue
     setTimeout(done, 60000);
@@ -1429,7 +1467,7 @@ function showChoicesForCurrentStep() {
   const step = demo.steps[pickStep];
   if (step.isLast || !(step.choices && step.choices.length)) {
     // Step final sans choix : juste sa vidéo puis fin
-    playVideoOnce(step.videoUrl, { fallbackText: step.avatarText, caption: step.avatarText, success: true }).then(() => showEnd());
+    playVideoOnce(step.videoUrl, { fallbackText: step.avatarText, caption: step.avatarText, success: true, audioUrl: step.audioUrl }).then(() => showEnd());
     return;
   }
   // Mode choix : on cache la vidéo, les 4 propositions prennent l'écran
@@ -1621,7 +1659,7 @@ async function advanceAfterCorrect() {
     return;
   }
   // Joue la vidéo de cette étape (la "réaction" de Sophie au choix précédent)
-  await playVideoOnce(step.videoUrl, { fallbackText: step.avatarText, caption: step.avatarText });
+  await playVideoOnce(step.videoUrl, { fallbackText: step.avatarText, caption: step.avatarText, audioUrl: step.audioUrl });
   showChoicesForCurrentStep();
 }
 
