@@ -1584,20 +1584,68 @@ function stopIdleLoop() {
 async function scheduleNextIdle() {
   if (!idleActive) return;
   const pick = pickIdleVideo();
-  // Idle → idle : cut sec. Pas de fondu entre 2 idles consécutives car ça
-  // créerait un pulse d'opacité parasite (l'avatar reste au même endroit,
-  // seuls quelques mouvements diffèrent — un cut est plus naturel).
-  // Exception : 1ère idle après un Speak (ou au boot, layer initial vide) →
-  // crossfade pour transition douce depuis la step video / l'écran initial.
+  // 1ère idle (post-speak ou au boot) : crossfade depuis l'écran/le speak.
+  // Idles suivantes : cut sec (chaîné via le pre-warm dans armIdleChain).
   const isFirstIdleAfterSpeak = !idleLastWasIdle;
   const v = await swapToVideo(pick.url, { instant: !isFirstIdleAfterSpeak });
   idleLastWasIdle = true;
   if (!idleActive) return;
-  idleEndedHandler = () => {
-    if (!idleActive) return;
-    scheduleNextIdle();
+  armIdleChain(v);
+}
+
+// Pré-démarrage chevauché : à T-400ms avant la fin de l'idle courante,
+// on charge ET play la prochaine idle sur le layer inactif (en opacity 0).
+// Au "ended" de l'idle courante, le layer inactif a déjà 400ms de vidéo
+// jouée à l'écran : le cut est garanti instantané, sans race sur la 1re
+// frame du nouveau layer (cause habituelle des micro-flashes noirs).
+function armIdleChain(currentVideo) {
+  let prewarmDone = false;
+
+  const onTime = () => {
+    if (prewarmDone || !idleActive) return;
+    const dur = currentVideo.duration;
+    if (!dur || isNaN(dur) || !isFinite(dur)) return;
+    if (dur - currentVideo.currentTime > 0.4) return;
+    prewarmDone = true;
+    currentVideo.removeEventListener('timeupdate', onTime);
+    const nextPick = pickIdleVideo();
+    const inactiveId = activeLayer === 'a' ? 'b' : 'a';
+    const next = document.getElementById('video-' + inactiveId);
+    next.src = nextPick.url;
+    next.loop = false;
+    next.muted = true;
+    try { next.currentTime = 0; } catch (e) {}
+    next.play().catch(() => {});
   };
-  v.addEventListener('ended', idleEndedHandler, { once: true });
+  currentVideo.addEventListener('timeupdate', onTime);
+
+  idleEndedHandler = () => {
+    currentVideo.removeEventListener('timeupdate', onTime);
+    if (!idleActive) return;
+    if (prewarmDone) {
+      // Le layer inactif joue déjà la prochaine idle depuis ~400ms : cut
+      // immédiat, pas d'attente, pas de race sur la 1re frame.
+      const inactiveId = activeLayer === 'a' ? 'b' : 'a';
+      const next = document.getElementById('video-' + inactiveId);
+      const prev = currentVideo;
+      next.style.transition = 'none';
+      prev.style.transition = 'none';
+      next.classList.add('active');
+      prev.classList.remove('active');
+      activeLayer = inactiveId;
+      requestAnimationFrame(() => {
+        next.style.transition = '';
+        prev.style.transition = '';
+      });
+      setTimeout(() => { try { prev.pause(); } catch (e) {} }, 50);
+      // Continue la chaîne sur la nouvelle idle (déjà en cours de lecture)
+      armIdleChain(next);
+    } else {
+      // Vidéo très courte ou pas de timeupdate : fallback sur le path normal
+      scheduleNextIdle();
+    }
+  };
+  currentVideo.addEventListener('ended', idleEndedHandler, { once: true });
 }
 
 // Joue la vidéo d'un step (Seedance) avec son audio ElevenLabs en parallèle.
@@ -1632,16 +1680,56 @@ async function playStep(url, opts) {
 
   return new Promise((resolve) => {
     let resolved = false;
+    // Pré-warm de l'idle 400ms avant la fin de l'audio : on charge ET play
+    // l'idle sur le layer inactif (en opacity 0). Au audio.ended, le layer
+    // a déjà 400ms de vidéo jouée → crossfade direct sans race sur la 1re frame.
+    let idlePrewarmDone = false;
+    const onAudioTime = () => {
+      if (idlePrewarmDone || !audioUrl) return;
+      const dur = audioEl.duration;
+      if (!dur || isNaN(dur) || !isFinite(dur)) return;
+      if (dur - audioEl.currentTime > 0.4) return;
+      idlePrewarmDone = true;
+      audioEl.removeEventListener('timeupdate', onAudioTime);
+      // Pre-load + pre-play l'idle sur le layer inactif (l'autre que `v`)
+      (async () => {
+        if (!idleVideosReady) await preloadIdleVideos();
+        const pick = pickIdleVideo();
+        const inactiveId = activeLayer === 'a' ? 'b' : 'a';
+        const next = document.getElementById('video-' + inactiveId);
+        next.src = pick.url;
+        next.loop = false;
+        next.muted = true;
+        try { next.currentTime = 0; } catch (e) {}
+        next.play().catch(() => {});
+      })();
+    };
+
     const finish = () => {
       if (resolved) return;
       resolved = true;
       v.loop = false;
       try { audioEl.pause(); } catch (e) {}
+      audioEl.removeEventListener('timeupdate', onAudioTime);
       audioEl.removeAttribute('src');
       if (cap) { cap.style.display = 'none'; cap.classList.remove('show'); }
       frame.classList.remove('success');
-      // Reprend l'idle
-      startIdleLoop();
+      // Si pré-warm a eu lieu : crossfade direct vers l'idle déjà en lecture.
+      if (idlePrewarmDone) {
+        const inactiveId = activeLayer === 'a' ? 'b' : 'a';
+        const next = document.getElementById('video-' + inactiveId);
+        const prev = v;
+        next.classList.add('active');
+        prev.classList.remove('active');
+        activeLayer = inactiveId;
+        setTimeout(() => { try { prev.pause(); } catch (e) {} }, 1000);
+        idleActive = true;
+        idleLastWasIdle = true;
+        armIdleChain(next);
+      } else {
+        // Audio trop court ou pas de timeupdate : fallback path normal
+        startIdleLoop();
+      }
       resolve();
     };
 
@@ -1655,6 +1743,7 @@ async function playStep(url, opts) {
         updateMuteUI();
         audioEl.play().catch(() => {});
       });
+      audioEl.addEventListener('timeupdate', onAudioTime);
       audioEl.addEventListener('ended', finish, { once: true });
       audioEl.addEventListener('error', finish, { once: true });
       updateMuteUI();
