@@ -101,6 +101,38 @@
       object-fit: contain;
       background: #1a1410;
     }
+    /* 2 layers superposés pour crossfade entre vidéos (évite le flash noir) */
+    .video-layer {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: contain;
+      background: #1a1410;
+      opacity: 0;
+      transition: opacity .35s ease-in-out;
+      pointer-events: none;
+    }
+    .video-layer.active { opacity: 1; }
+    /* Placeholder de chargement initial — caché dès qu'une vidéo joue */
+    .video-placeholder {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 14px;
+      background: #1a1410;
+      color: #b8860b;
+      font-size: 13px; letter-spacing: .04em;
+      pointer-events: none;
+      transition: opacity .25s;
+    }
+    .video-placeholder.hidden { opacity: 0; }
+    .video-placeholder .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid rgba(184,134,11,0.2);
+      border-top-color: #b8860b;
+      border-radius: 50%;
+      animation: video-spin 0.9s linear infinite;
+    }
+    @keyframes video-spin { to { transform: rotate(360deg); } }
     /* Sous-titres en overlay sur la vidéo (visibles uniquement quand muté) */
     .video-caption {
       position: absolute;
@@ -153,8 +185,8 @@
       background: rgba(184,134,11,0.85);
       border-color: rgba(255,255,255,0.4);
     }
-    /* Mode "choix" : la vidéo est cachée, les choix prennent la place */
-    main.choices-only .video-container { display: none; }
+    /* L'avatar (idle ou step) reste toujours visible — pas de display:none.
+       En mode 'choices' on centre juste les choix par rapport au layout. */
     main.choices-only { justify-content: center; }
     @media (max-width: 720px) {
       .video-caption { font-size: 13px; padding: 28px 16px 14px; }
@@ -841,7 +873,12 @@
 <main>
   <div class="video-container">
     <div class="video-frame" id="video-frame">
-      <div class="placeholder">
+      <video class="video-layer active" id="video-a" playsinline muted preload="auto"></video>
+      <video class="video-layer" id="video-b" playsinline muted preload="auto"></video>
+      <audio id="step-audio" preload="auto"></audio>
+      <div class="video-caption" id="video-caption" style="display:none"></div>
+      <button class="video-mute-btn" id="video-mute-btn" type="button" aria-label="Activer ou couper le son">🔊</button>
+      <div class="video-placeholder" id="video-placeholder">
         <div class="spinner"></div>
         <div class="label">Chargement…</div>
       </div>
@@ -1137,13 +1174,21 @@ async function loadDemo(data) {
   buildStepTimeline();
   updateScoreDisplay();
 
-  // Affiche directement la question + boutons Yes/No, sans vidéo d'accueil.
+  // 1. Précharge les vidéos idle en blob URL (transitions instant) puis lance
+  //    la boucle continue (Sophie respire/cligne/etc) — pas de flash noir entre
+  //    les transitions, l'avatar reste vivant pendant tout le parcours.
+  preloadIdleVideos().then(() => startIdleLoop());
+
+  // 2. Précharge en arrière-plan les vidéos + audios des steps (warm le cache HTTP).
+  preloadStepVideos();
+
+  // 3. Affiche la question + boutons Yes/No (l'idle joue derrière).
   showAdvisorPrompt();
 }
 
 function showAdvisorPrompt() {
-  // Mode "choices" : la question + boutons Oui/Non prennent l'écran (pas de vidéo d'accueil).
-  setMode('choices');
+  // Mode "video" : on garde l'idle de Sophie visible derrière la question.
+  setMode('video');
   const grid = document.getElementById('choices-grid');
   const question = document.getElementById('question-label');
   question.textContent = 'Êtes-vous prêt(e) ?';
@@ -1166,12 +1211,20 @@ function showAdvisorPrompt() {
 }
 
 function showAdvisorGoodbye() {
-  document.getElementById('video-frame').innerHTML = `
-    <div class="placeholder">
-      <div class="label">À bientôt</div>
-      <div class="text">"Pas de souci, à très vite. Reviens quand tu veux pour t'entraîner avec nos clients."</div>
-    </div>
-  `;
+  // Stop l'idle et affiche un placeholder "À bientôt" en lieu et place de la vidéo
+  stopIdleLoop();
+  const frame = document.getElementById('video-frame');
+  // On masque les 2 layers vidéo et on injecte un placeholder par-dessus
+  document.getElementById('video-a').classList.remove('active');
+  document.getElementById('video-b').classList.remove('active');
+  try { document.getElementById('video-a').pause(); } catch (e) {}
+  try { document.getElementById('video-b').pause(); } catch (e) {}
+  // Le placeholder existant peut être réutilisé
+  let ph = document.getElementById('video-placeholder');
+  if (ph) {
+    ph.classList.remove('hidden');
+    ph.innerHTML = `<div class="label" style="color:#b8860b;font-size:18px;font-weight:700;">À bientôt</div><div style="color:#d4b97a;font-size:14px;text-align:center;padding:0 24px;font-style:italic;">« Pas de souci, à très vite. Reviens quand tu veux pour t'entraîner avec nos clients. »</div>`;
+  }
   const grid = document.getElementById('choices-grid');
   const question = document.getElementById('question-label');
   question.textContent = '';
@@ -1356,103 +1409,237 @@ function setMode(mode) {
   }
 }
 
-function playVideoOnce(url, opts) {
+// ============================================================================
+// IDLE LOOP + STEP VIDEO PLAYER
+//
+// 2 elements <video> superposés (A/B) avec crossfade opacity → pas de flash
+// noir entre les transitions. L'idle joue en boucle continue (5 vidéos, choix
+// pondéré) tant qu'on n'a pas un step à jouer. Quand un step démarre, on swap
+// vers la vidéo step (avec audio ElevenLabs en parallèle), puis retour idle.
+// ============================================================================
+
+const IDLE_VIDEOS = [
+  { src: 'idle-doigts.mp4', weight: 2 },
+  { src: 'idle-respire.mp4', weight: 2 },
+  { src: 'idle-respire-cligne.mp4', weight: 2 },
+  { src: 'idle-main-cheveux.mp4', weight: 1 }, // 2× moins fréquente
+  { src: 'idle-regard-droite.mp4', weight: 1 }, // 2× moins fréquente
+];
+let idleVideosReady = false;
+let activeLayer = 'a'; // 'a' ou 'b' — quel <video> est visible
+let idleActive = false;
+let idleEndedHandler = null;
+
+// Précharge les 5 idle vidéos en blob URL → transitions instantanées (pas de
+// re-fetch entre chaque idle).
+async function preloadIdleVideos() {
+  if (idleVideosReady) return;
+  await Promise.all(IDLE_VIDEOS.map(async (v) => {
+    if (v.url) return;
+    try {
+      const r = await fetch('/assets/idle/' + v.src);
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const blob = await r.blob();
+      v.url = URL.createObjectURL(blob);
+    } catch (e) {
+      // Fallback : URL directe (le browser cachera après le 1er play)
+      v.url = '/assets/idle/' + v.src;
+    }
+  }));
+  idleVideosReady = true;
+}
+
+// Précharge les vidéos des steps en arrière-plan (warm le cache HTTP).
+// Pas de blob URL ici — vidéos potentiellement plus grosses, on garde mémoire OK.
+function preloadStepVideos() {
+  if (!demo || !Array.isArray(demo.steps)) return;
+  for (const s of demo.steps) {
+    if (s.videoUrl) {
+      try { fetch(s.videoUrl, { mode: 'no-cors' }).catch(() => {}); } catch (e) {}
+    }
+    if (s.audioUrl) {
+      try { fetch(s.audioUrl, { mode: 'no-cors' }).catch(() => {}); } catch (e) {}
+    }
+  }
+}
+
+function pickIdleVideo() {
+  const total = IDLE_VIDEOS.reduce((s, v) => s + v.weight, 0);
+  let r = Math.random() * total;
+  for (const v of IDLE_VIDEOS) {
+    r -= v.weight;
+    if (r <= 0) return v;
+  }
+  return IDLE_VIDEOS[0];
+}
+
+// Charge `url` sur le layer inactif, attend que la 1re frame soit prête,
+// puis crossfade. Retourne le <video> qui est désormais visible.
+async function swapToVideo(url, { loop = false } = {}) {
+  const inactiveId = activeLayer === 'a' ? 'b' : 'a';
+  const next = document.getElementById('video-' + inactiveId);
+  const prev = document.getElementById('video-' + activeLayer);
+  if (next.src !== url) next.src = url;
+  next.loop = loop;
+  next.muted = true; // toutes nos vidéos sont muettes (audio externe via <audio id="step-audio">)
+
+  // Attendre qu'on ait au moins la 1re frame
+  if (next.readyState < 2) {
+    await new Promise((resolve) => {
+      const ok = () => { cleanup(); resolve(); };
+      const timeout = setTimeout(ok, 4000); // safety
+      const cleanup = () => {
+        clearTimeout(timeout);
+        next.removeEventListener('loadeddata', ok);
+        next.removeEventListener('canplay', ok);
+      };
+      next.addEventListener('loadeddata', ok, { once: true });
+      next.addEventListener('canplay', ok, { once: true });
+    });
+  }
+  try { next.currentTime = 0; } catch (e) {}
+  try { await next.play(); } catch (e) { /* autoplay bloqué : pas grave, vidéo muette */ }
+
+  // Cache le placeholder dès la 1re vidéo qui joue
+  const ph = document.getElementById('video-placeholder');
+  if (ph && !ph.classList.contains('hidden')) ph.classList.add('hidden');
+
+  // Crossfade
+  next.classList.add('active');
+  prev.classList.remove('active');
+  activeLayer = inactiveId;
+
+  // Pause l'ancien après la fin du fade
+  setTimeout(() => { try { prev.pause(); } catch (e) {} }, 400);
+
+  return next;
+}
+
+async function startIdleLoop() {
+  if (idleActive) return;
+  if (!idleVideosReady) await preloadIdleVideos();
+  idleActive = true;
+  scheduleNextIdle();
+}
+
+function stopIdleLoop() {
+  idleActive = false;
+  // Détache le handler 'ended' courant pour éviter qu'il chaîne après un step
+  if (idleEndedHandler) {
+    const layers = ['video-a', 'video-b'];
+    for (const id of layers) {
+      const v = document.getElementById(id);
+      if (v) v.removeEventListener('ended', idleEndedHandler);
+    }
+    idleEndedHandler = null;
+  }
+}
+
+async function scheduleNextIdle() {
+  if (!idleActive) return;
+  const pick = pickIdleVideo();
+  const v = await swapToVideo(pick.url);
+  if (!idleActive) return; // a été stoppé entre-temps
+  // Au end de l'idle courante, enchaîne sur une autre (différente si possible)
+  idleEndedHandler = () => {
+    if (!idleActive) return;
+    scheduleNextIdle();
+  };
+  v.addEventListener('ended', idleEndedHandler, { once: true });
+}
+
+// Joue la vidéo d'un step (Seedance) avec son audio ElevenLabs en parallèle.
+// La durée est pilotée par l'audio (vidéo bouclée si plus courte). À la fin,
+// l'idle reprend automatiquement.
+async function playStep(url, opts) {
+  const frame = document.getElementById('video-frame');
+  if (!url) { startIdleLoop(); return; }
+  stopIdleLoop();
+
+  frame.classList.remove('success');
+  if (opts && opts.success) frame.classList.add('success');
+
+  const cap = document.getElementById('video-caption');
+  if (opts && opts.caption) {
+    cap.innerHTML = `<span class="speaker">Sophie</span>${escapeHtml(opts.caption)}`;
+    cap.style.display = '';
+  }
+
+  const audioUrl = opts && opts.audioUrl;
+  const audioEl = document.getElementById('step-audio');
+  // Si on a un audio externe, la vidéo step bouclera en attendant la fin de l'audio.
+  const v = await swapToVideo(url, { loop: !!audioUrl });
+
+  function updateMuteUI() {
+    const muteBtn = document.getElementById('video-mute-btn');
+    const muted = audioEl.src ? audioEl.muted : isMuted;
+    muteBtn.textContent = muted ? '🔇' : '🔊';
+    muteBtn.classList.toggle('muted', muted);
+    if (cap) cap.classList.toggle('show', muted);
+  }
+
   return new Promise((resolve) => {
-    const frame = document.getElementById('video-frame');
-    if (!url) { resolve(); return; }
-    setMode('video');
-    frame.classList.remove('success');
-    if (opts && opts.success) frame.classList.add('success');
-    const captionText = (opts && opts.caption) ? escapeHtml(opts.caption) : '';
-    const captionHtml = captionText
-      ? `<div class="video-caption" id="video-caption"><span class="speaker">Sophie</span>${captionText}</div>`
-      : '';
-    const muteBtnHtml = `<button class="video-mute-btn" id="video-mute-btn" type="button" aria-label="Activer ou couper le son">${isMuted ? '🔇' : '🔊'}</button>`;
-    // Si on a un audioUrl séparé (ElevenLabs), on l'injecte aussi : la vidéo
-    // Seedance est silencieuse, donc on superpose l'audio TTS et on synchronise
-    // sur sa durée. Si pas d'audioUrl, on garde le son natif de la vidéo
-    // (cas vidéo uploadée par l'utilisateur avec son audio intégré).
-    const audioUrl = opts && opts.audioUrl;
-    const audioTag = audioUrl ? `<audio id="video-audio" preload="auto" src="${escapeHtml(audioUrl)}"></audio>` : '';
-    frame.innerHTML = `<video autoplay playsinline preload="auto" src="${escapeHtml(url)}"></video>${audioTag}${captionHtml}${muteBtnHtml}`;
-    const v = frame.querySelector('video');
-    const a = audioUrl ? frame.querySelector('#video-audio') : null;
-    const cap = frame.querySelector('#video-caption');
-    const muteBtn = frame.querySelector('#video-mute-btn');
-
-    // Si on joue un audio externe, la vidéo doit être muette en permanence
-    // (sa piste audio est ignorée — c'est l'audio ElevenLabs qui parle).
-    if (a) v.muted = true;
-
-    function updateMuteUI() {
-      const muted = a ? a.muted : v.muted;
-      muteBtn.textContent = muted ? '🔇' : '🔊';
-      muteBtn.classList.toggle('muted', muted);
-      if (cap) cap.classList.toggle('show', muted);
-    }
-
-    if (a) {
-      a.muted = isMuted;
-    } else {
-      v.muted = isMuted;
-    }
-    updateMuteUI();
-
-    muteBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (a) {
-        a.muted = !a.muted;
-        isMuted = a.muted;
-      } else {
-        v.muted = !v.muted;
-        isMuted = v.muted;
-      }
-      updateMuteUI();
-      if (a && !a.muted && a.paused) { a.play().catch(() => {}); }
-      if (!a && !v.muted && v.paused) { v.play().catch(() => {}); }
-    });
-
     let resolved = false;
-    const done = () => { if (!resolved) { resolved = true; resolve(); } };
-    v.addEventListener('loadeddata', updateMuteUI);
-    v.addEventListener('playing', updateMuteUI);
-    if (a) {
-      // La durée de l'étape est dictée par l'audio (généralement plus longue
-      // que la vidéo Seedance bornée à 15s). Quand l'audio finit, on enchaîne.
-      a.addEventListener('ended', done);
-      a.addEventListener('error', done);
-      // Boucle la vidéo si elle est plus courte que l'audio (mouvement continu).
-      v.addEventListener('ended', () => {
-        try { v.currentTime = 0; v.play().catch(() => {}); } catch (e) {}
-      });
-    } else {
-      v.addEventListener('ended', done);
-    }
-    v.addEventListener('error', () => {
-      frame.innerHTML = `<div class="placeholder"><div class="label">Vidéo indisponible</div><div class="text">"${escapeHtml((opts && opts.fallbackText) || '—')}"</div></div>`;
-      setTimeout(done, 1500);
-    });
-
-    // Tentative autoplay ; si bloqué (mobile sans interaction), retombe en muted automatiquement
-    const playBoth = () => {
-      v.play().catch(() => {
-        v.muted = true;
-        v.play().catch(() => {});
-      });
-      if (a) {
-        a.play().catch(() => {
-          a.muted = true;
-          isMuted = true;
-          updateMuteUI();
-          a.play().catch(() => {});
-        });
-      }
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      v.loop = false;
+      try { audioEl.pause(); } catch (e) {}
+      audioEl.removeAttribute('src');
+      if (cap) { cap.style.display = 'none'; cap.classList.remove('show'); }
+      frame.classList.remove('success');
+      // Reprend l'idle
+      startIdleLoop();
+      resolve();
     };
-    playBoth();
 
-    // Sécurité : si la vidéo dure plus de 60s sans 'ended', on continue
-    setTimeout(done, 60000);
+    if (audioUrl) {
+      audioEl.src = audioUrl;
+      audioEl.muted = isMuted;
+      audioEl.currentTime = 0;
+      audioEl.play().catch(() => {
+        audioEl.muted = true;
+        isMuted = true;
+        updateMuteUI();
+        audioEl.play().catch(() => {});
+      });
+      audioEl.addEventListener('ended', finish, { once: true });
+      audioEl.addEventListener('error', finish, { once: true });
+      updateMuteUI();
+    } else {
+      v.addEventListener('ended', finish, { once: true });
+    }
+
+    // Sécurité : 90s max par step (au cas où l'audio plante silencieusement)
+    setTimeout(finish, 90000);
   });
+}
+
+// Bouton mute persistent (n'est plus recréé à chaque vidéo) — bind direct
+// car le script <script> est en bas du body, donc le DOM existe déjà.
+(function bindMuteButton() {
+  const muteBtn = document.getElementById('video-mute-btn');
+  const cap = document.getElementById('video-caption');
+  const audioEl = document.getElementById('step-audio');
+  if (!muteBtn) return;
+  muteBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (audioEl && audioEl.src) {
+      audioEl.muted = !audioEl.muted;
+      isMuted = audioEl.muted;
+      if (!audioEl.muted && audioEl.paused) audioEl.play().catch(() => {});
+    } else {
+      isMuted = !isMuted;
+    }
+    muteBtn.textContent = isMuted ? '🔇' : '🔊';
+    muteBtn.classList.toggle('muted', isMuted);
+    if (cap) cap.classList.toggle('show', isMuted);
+  });
+})();
+
+// Compat : ancien nom utilisé ailleurs dans le code
+function playVideoOnce(url, opts) {
+  return playStep(url, opts);
 }
 
 // ============================================================================
@@ -1684,6 +1871,7 @@ document.getElementById('feedback-modal').addEventListener('click', (e) => {
 
 function showEnd() {
   hideFeedback();
+  stopIdleLoop();
   // Personnalisation avec le prénom
   const heroTitle = document.getElementById('end-hero-title');
   if (heroTitle) heroTitle.textContent = userFirstName ? `🎉 Bravo ${userFirstName} !` : '🎉 Bravo !';
