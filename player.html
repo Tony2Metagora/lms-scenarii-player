@@ -1675,26 +1675,51 @@ async function playIntroSequence(introVO) {
     return;
   }
 
-  // 5. Active la vidéo entry via swapToVideo — le système battle-tested
-  //    du codebase qui gère préchargement (canplay/loadeddata), 1ère frame
-  //    rendue (requestVideoFrameCallback), crossfade opacity, ET sync
-  //    `activeLayer` global (sinon le prochain swap est cassé).
+  // 5. Active la vidéo entry via swapToVideo (loop=false : lecture unique).
+  //    Tony : "elle doit être jouée en totalité au tout début car à la fin
+  //    elle arrive parfaitement à la position de la 1ere video idle. Pour
+  //    éviter une transition image noire il faut que le 1er idle se joue
+  //    juste avant la fin de la video entry."
+  //    → on réutilise armIdleChain (qui pré-warm la prochaine vidéo ~400ms
+  //    avant la fin du courant + cut sec à 'ended'). Le crossfade entry→idle
+  //    devient invisible si la dernière frame entry matche la 1re frame idle.
   if (introBgUrl) {
     console.log('[playIntroSequence] swap to entry video');
     try {
-      await swapToVideo(introBgUrl, { loop: true, instant: false });
+      await swapToVideo(introBgUrl, { loop: false, instant: false });
+      const entryLayer = document.getElementById('video-' + activeLayer);
+
+      // Réactive l'idle loop : armIdleChain attaché à la vidéo entry va
+      //   - timeupdate : pré-warm la 1re idle sur le calque inactif ~400ms avant la fin
+      //   - ended      : cut sec (transition='none' + class swap), idle déjà en cours
+      //                  de lecture sur l'autre calque depuis 400ms → seamless
+      idleSuppressed = false;
+      idleActive = true;
+      idleLastWasIdle = false; // 1re idle après entry → fallback en crossfade si pas de pré-warm
+      armIdleChain(entryLayer);
+
+      // Attend la fin de l'entry video (avec safety 15s).
+      await new Promise((resolve) => {
+        if (entryLayer.ended) return resolve();
+        entryLayer.addEventListener('ended', resolve, { once: true });
+        setTimeout(resolve, 15000);
+      });
     } catch (e) {
-      console.warn('[playIntroSequence] swapToVideo entry failed:', e);
+      console.warn('[playIntroSequence] entry video flow failed:', e);
+      idleSuppressed = false;
+      startIdleLoop();
     }
+  } else {
+    // Pas de vidéo entry configurée → on rebascule juste sur l'idle
+    idleSuppressed = false;
+    startIdleLoop();
   }
 
-  // 6. VO contexte du 1er step par-dessus l'entry video
-  const firstStep = demo && demo.steps && demo.steps[0];
-  if (firstStep) await playStepContextVO(firstStep);
+  // Note : VO contexte step 0 retirée du flow intro (Tony n'en a pas généré
+  //        et ça court-circuitait le minimum d'affichage entry video). Si on
+  //        veut la rejouer plus tard, il faudra la déclencher en parallèle
+  //        de la vidéo entry, pas après.
 
-  // 7. Restaure l'idle loop normal (il fait swap entry→idle automatiquement)
-  idleSuppressed = false;
-  startIdleLoop();
   showChoicesForCurrentStep();
 }
 
