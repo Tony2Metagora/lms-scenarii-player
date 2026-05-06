@@ -675,9 +675,41 @@
       letter-spacing: .12em;
       text-transform: uppercase;
     }
+    /* Boutons Oui/Non dans la bulle (utilisés pour "Êtes-vous prêt ?" après la VO) */
+    .intro-bubble-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 22px;
+      flex-wrap: wrap;
+    }
+    .intro-bubble-buttons .bubble-btn {
+      padding: 11px 22px;
+      border-radius: 999px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all .2s;
+      border: 1px solid transparent;
+    }
+    .intro-bubble-buttons .bubble-btn.yes {
+      background: linear-gradient(135deg, #b8860b, #d4a017);
+      color: white;
+      border-color: rgba(184,134,11,0.4);
+      box-shadow: 0 4px 14px rgba(184,134,11,0.35);
+    }
+    .intro-bubble-buttons .bubble-btn.yes:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(184,134,11,0.5); }
+    .intro-bubble-buttons .bubble-btn.no {
+      background: rgba(255,255,255,0.6);
+      color: #6b5a3f;
+      border-color: rgba(120,90,40,0.25);
+    }
+    .intro-bubble-buttons .bubble-btn.no:hover { background: rgba(255,255,255,0.85); }
     @media (max-width: 720px) {
       .intro-bubble { padding: 28px 22px; border-radius: 22px; }
       .intro-bubble-text { font-size: 17px; min-height: 84px; }
+      .intro-bubble-buttons .bubble-btn { font-size: 13px; padding: 10px 18px; }
     }
 
     /* === TUTORIEL ONBOARDING (1ère visite) ===
@@ -1038,6 +1070,10 @@
 <div class="intro-overlay" id="intro-overlay">
   <div class="intro-bubble">
     <div class="intro-bubble-text" id="intro-bubble-text"></div>
+    <div class="intro-bubble-buttons" id="intro-bubble-buttons" style="display:none;">
+      <button id="intro-bubble-yes" type="button" class="bubble-btn yes">Oui, je suis prêt(e)</button>
+      <button id="intro-bubble-no" type="button" class="bubble-btn no">Pas maintenant</button>
+    </div>
   </div>
   <div class="intro-skip-hint" id="intro-skip-hint">touchez l'écran pour passer</div>
 </div>
@@ -1383,8 +1419,10 @@ function _splitIntoPhrases(text) {
 /**
  * Joue une voix-off avec bulle centrale typewriter. Retourne quand fini ou skipé.
  * @param {{ voice?, scriptLines?, audioUrl? }} vo
+ * @param {{ keepOverlayOpen?: boolean }} opts si keepOverlayOpen=true, on ne ferme pas
+ *   l'overlay à la fin (utile pour enchaîner avec un prompt Yes/No dans la même bulle).
  */
-async function playVOOverlay(vo) {
+async function playVOOverlay(vo, opts) {
   const overlay = document.getElementById('intro-overlay');
   const textEl = document.getElementById('intro-bubble-text');
   const audioEl = document.getElementById('step-audio');
@@ -1464,12 +1502,51 @@ async function playVOOverlay(vo) {
     await new Promise(res => setTimeout(res, 500));
   }
 
-  // 6. Cleanup
+  // 6. Cleanup audio + skip handler. L'overlay reste visible si keepOverlayOpen
+  //    (le caller enchaîne avec showReadyPrompt dans la même bulle).
   try { audioEl.pause(); audioEl.removeAttribute('src'); } catch (e) {}
   overlay.removeEventListener('click', onSkipClick);
-  overlay.classList.remove('show');
-  document.body.classList.remove('intro-active');
-  textEl.textContent = '';
+  if (!(opts && opts.keepOverlayOpen)) {
+    overlay.classList.remove('show');
+    document.body.classList.remove('intro-active');
+    textEl.textContent = '';
+  }
+}
+
+// Affiche dans la bulle "Êtes-vous prêt(e) ?" + boutons Oui/Non. Suppose que
+// l'overlay est déjà visible (caller a appelé playVOOverlay avec keepOverlayOpen).
+// Renvoie true si l'utilisateur clique Oui, false si Non.
+async function showReadyPrompt(promptText) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('intro-overlay');
+    const textEl = document.getElementById('intro-bubble-text');
+    const btnRow = document.getElementById('intro-bubble-buttons');
+    const yesBtn = document.getElementById('intro-bubble-yes');
+    const noBtn = document.getElementById('intro-bubble-no');
+    if (!overlay || !textEl || !btnRow || !yesBtn || !noBtn) { resolve(true); return; }
+    if (!overlay.classList.contains('show')) {
+      overlay.classList.add('show');
+      document.body.classList.add('intro-active');
+    }
+    btnRow.style.display = 'none';
+    _voSkipRequested = false;
+    textEl.classList.remove('done');
+    const message = promptText || 'Êtes-vous prêt(e) à rencontrer la cliente ?';
+    _typewriter(textEl, message, 32).then(() => {
+      textEl.classList.add('done');
+      btnRow.style.display = 'flex';
+    });
+    const cleanup = () => {
+      btnRow.style.display = 'none';
+      overlay.classList.remove('show');
+      document.body.classList.remove('intro-active');
+      textEl.textContent = '';
+      yesBtn.onclick = null;
+      noBtn.onclick = null;
+    };
+    yesBtn.onclick = () => { cleanup(); resolve(true); };
+    noBtn.onclick = () => { cleanup(); resolve(false); };
+  });
 }
 
 // Joue la VO contexte d'un step (situation narrée). Texte = scriptLines si fourni
@@ -1516,19 +1593,60 @@ function _restoreIntroBackdrop(state) {
   startIdleLoop();
 }
 
+// Précharge la vidéo entry client en arrière-plan (browser cache HTTP) pendant
+// la VO. Au moment où l'user dit "Oui", _setIntroBackdrop reuse les bytes cachés
+// donc le swap est instantané. Retourne l'élément à supprimer après usage.
+function _preloadIntroVideoSilent(videoUrl) {
+  if (!videoUrl) return null;
+  const v = document.createElement('video');
+  v.preload = 'auto';
+  v.muted = true;
+  v.src = videoUrl;
+  v.style.cssText = 'position:absolute; left:-9999px; width:1px; height:1px; visibility:hidden; pointer-events:none;';
+  document.body.appendChild(v);
+  try { v.load(); } catch (e) {}
+  return v;
+}
+
 async function playIntroSequence(introVO) {
-  // Backdrop : si la démo a une vidéo "cliente entre en boutique" configurée,
-  // on swap derrière l'overlay (idle Sophie remplacée pendant l'intro).
   const introBgUrl = demo && demo.introVideo && demo.introVideo.videoUrl;
+
+  // 1. Lance le préchargement de l'entry video en arrière-plan (sans la jouer
+  //    ni l'afficher). Le but : avoir les bytes en cache HTTP au moment où
+  //    l'user clique "Oui je suis prêt(e)" → swap instantané.
+  const preloadEl = _preloadIntroVideoSilent(introBgUrl);
+
+  // 2. Joue la VO d'intro sur le fond idle Sophie flouté (PAS de swap d'entry
+  //    video pour le moment — l'user n'a pas encore consenti). On garde l'overlay
+  //    ouvert pour enchaîner avec showReadyPrompt sans flicker.
+  await playVOOverlay(introVO, { keepOverlayOpen: true });
+
+  // 3. "Êtes-vous prêt(e) à rencontrer la cliente ?" + boutons Oui/Non
+  const userReady = await showReadyPrompt();
+
+  // Cleanup du préchargement (on ne va plus en avoir besoin)
+  if (preloadEl) {
+    try { preloadEl.pause(); } catch (e) {}
+    preloadEl.remove();
+  }
+
+  if (!userReady) {
+    // L'user a cliqué "Pas maintenant" → goodbye legacy (placeholder "À bientôt")
+    showAdvisorGoodbye();
+    return;
+  }
+
+  // 4. Maintenant qu'on a le consentement, on swap au backdrop entry video.
+  //    Le browser réutilise les bytes mis en cache pendant la VO → quasi-instant.
   let backdropState = null;
   if (introBgUrl) backdropState = await _setIntroBackdrop(introBgUrl);
 
-  await playVOOverlay(introVO);
-  // Enchaîne avec la VO contexte du 1er step si présente — sinon on n'a rien
-  // pour cadrer la 1re question (l'avatar n'a pas encore parlé).
+  // 5. Joue la VO contexte du 1er step par-dessus la vidéo entry
+  //    (narration "Sophie entre dans la boutique du 17 rue de Sèvres…")
   const firstStep = demo && demo.steps && demo.steps[0];
   if (firstStep) await playStepContextVO(firstStep);
 
+  // 6. Restaure l'idle Sophie + montre les choix
   if (backdropState) _restoreIntroBackdrop(backdropState);
   showChoicesForCurrentStep();
 }
