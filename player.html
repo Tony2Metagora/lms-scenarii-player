@@ -1343,7 +1343,8 @@ async function _ensureVOAudio(vo) {
     }
   } catch (e) { /* ignore */ }
   try {
-    const fullText = vo.scriptLines.join(' ');
+    // Pause SSML 0.7s entre chaque ligne pour respirations naturelles.
+    const fullText = vo.scriptLines.join(' <break time="0.7s" /> ');
     const r = await fetch('/api/elevenlabs-tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
