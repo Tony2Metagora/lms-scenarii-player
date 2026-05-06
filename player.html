@@ -1399,19 +1399,25 @@ async function _ensureVOAudio(vo) {
 }
 
 // Nettoie le texte avant affichage typewriter :
-// - Retire les balises SSML <break time="X" /> (servent juste à ElevenLabs)
-// - Remplace les ellipses (… ou ...) par un point simple. Tony écrit "..." dans
-//   son script pour donner une pause à ElevenLabs ; à l'affichage on veut
-//   "détail. Bienvenue" pas "détail Bienvenue" (sans point).
+// - Retire les balises SSML <break time="X" /> en les remplaçant par un espace
+//   (sinon les mots de chaque côté se collent)
+// - Tony utilise "..." (3 points) ou "…" (ellipsis) dans son script pour
+//   donner une pause à ElevenLabs. Côté display :
+//     · "mot..." → "mot." (les points deviennent une fin de phrase)
+//     · "phrase. ..." → "phrase. " (la fin de phrase est déjà là, on retire les ...)
+//     · "..." orphelin (au milieu de rien) → espace simple
 function _cleanForDisplay(text) {
   return String(text || '')
-    .replace(/<break\b[^>]*\/?>/gi, '')   // <break time="X" /> et variantes
-    .replace(/<\/break\s*>/gi, '')         // </break> au cas où
-    .replace(/…+/g, '.')                    // ellipses unicode → point
-    .replace(/\.{3,}/g, '.')                // 3+ points → point
-    .replace(/\s+\./g, '.')                 // " ." → "." (espace avant point résiduel)
-    .replace(/\.\s*\./g, '.')               // ".." après collapse → "."
-    .replace(/\s{2,}/g, ' ')                // double espaces
+    .replace(/<break\b[^>]*\/?>/gi, ' ')
+    .replace(/<\/break\s*>/gi, ' ')
+    .replace(/([.?!])\s*\.{3,}/g, '$1 ')
+    .replace(/([.?!])\s*…+/g, '$1 ')
+    .replace(/(\w)\s*\.{3,}/g, '$1.')
+    .replace(/(\w)\s*…+/g, '$1.')
+    .replace(/\.{3,}/g, ' ')
+    .replace(/…+/g, ' ')
+    .replace(/\s+([.,])/g, '$1')
+    .replace(/\s{2,}/g, ' ')
     .trim();
 }
 
