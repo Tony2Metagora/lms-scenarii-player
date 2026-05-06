@@ -1248,39 +1248,39 @@ function hideBootLoader() {
 }
 
 // ============================================================================
-// Intro voice-over : bulle typewriter synchro audio (remplace "Êtes-vous prêt ?")
-// Lit le champ démo `introVO: { voice, scriptLines, audioUrl? }`. Si pas
-// d'audioUrl, génère via /api/elevenlabs-tts et cache en localStorage 6j.
+// Voice-over overlay : bulle typewriter synchro audio.
+// Réutilisé pour :
+//  - l'intro VO (Sprint B/D : remplace "Êtes-vous prêt ?")
+//  - la VO de contexte par étape (Sprint E : situation narrée avant les choix)
+// Si pas d'audioUrl côté config, on génère via /api/elevenlabs-tts (cache 6j localStorage).
 // ============================================================================
 
-let _introSkipRequested = false;
+let _voSkipRequested = false;
 
-function _introVOCacheKey(scriptLines, voice) {
+function _voCacheKey(scriptLines, voice) {
   const seed = (voice || 'default') + '::' + (scriptLines || []).join('|');
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
-  return 'lms:introvo:' + Math.abs(h).toString(36);
+  return 'lms:vo:' + Math.abs(h).toString(36);
 }
 
-async function _ensureIntroVOAudio(introVO) {
-  if (introVO.audioUrl) return introVO.audioUrl;
-  if (!Array.isArray(introVO.scriptLines) || introVO.scriptLines.length === 0) return null;
-  const cacheKey = _introVOCacheKey(introVO.scriptLines, introVO.voice);
+async function _ensureVOAudio(vo) {
+  if (vo.audioUrl) return vo.audioUrl;
+  if (!Array.isArray(vo.scriptLines) || vo.scriptLines.length === 0) return null;
+  const cacheKey = _voCacheKey(vo.scriptLines, vo.voice);
   try {
     const raw = localStorage.getItem(cacheKey);
     if (raw) {
       const cached = JSON.parse(raw);
-      if (cached.url && cached.t && Date.now() - cached.t < 6 * 24 * 3600 * 1000) {
-        return cached.url;
-      }
+      if (cached.url && cached.t && Date.now() - cached.t < 6 * 24 * 3600 * 1000) return cached.url;
     }
   } catch (e) { /* ignore */ }
   try {
-    const fullText = introVO.scriptLines.join(' ');
+    const fullText = vo.scriptLines.join(' ');
     const r = await fetch('/api/elevenlabs-tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: fullText, voice: introVO.voice || 'lucie' }),
+      body: JSON.stringify({ text: fullText, voice: vo.voice || 'lucie' }),
     });
     const data = await r.json();
     if (r.ok && data.url) {
@@ -1297,7 +1297,7 @@ function _typewriter(el, text, charSpeedMs) {
     el.textContent = '';
     let i = 0;
     const tick = () => {
-      if (_introSkipRequested) { el.textContent = text; resolve(); return; }
+      if (_voSkipRequested) { el.textContent = text; resolve(); return; }
       if (i >= text.length) { resolve(); return; }
       el.textContent += text[i++];
       setTimeout(tick, charSpeedMs);
@@ -1306,24 +1306,34 @@ function _typewriter(el, text, charSpeedMs) {
   });
 }
 
-async function playIntroSequence(introVO) {
+// Découpe un texte libre en phrases (point/exclam/interrog) pour la bulle typewriter.
+function _splitIntoPhrases(text) {
+  if (!text) return [];
+  return text.split(/(?<=[.!?…])\s+/).map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Joue une voix-off avec bulle centrale typewriter. Retourne quand fini ou skipé.
+ * @param {{ voice?, scriptLines?, audioUrl? }} vo
+ */
+async function playVOOverlay(vo) {
   const overlay = document.getElementById('intro-overlay');
   const textEl = document.getElementById('intro-bubble-text');
   const audioEl = document.getElementById('step-audio');
-  if (!overlay || !textEl) { showAdvisorPrompt(); return; }
+  if (!overlay || !textEl) return;
+  if (!vo || (!vo.audioUrl && !(Array.isArray(vo.scriptLines) && vo.scriptLines.length))) return;
 
-  _introSkipRequested = false;
+  _voSkipRequested = false;
   overlay.classList.add('show');
   document.body.classList.add('intro-active');
   const onSkipClick = (e) => {
-    // Ignore clic sur le bouton mute (remonté au-dessus de l'overlay via z-index)
     if (e && e.target && e.target.closest('.video-mute-btn')) return;
-    _introSkipRequested = true;
+    _voSkipRequested = true;
   };
   overlay.addEventListener('click', onSkipClick);
 
-  // 1. Récupère / génère l'audio VO
-  const audioUrl = await _ensureIntroVOAudio(introVO);
+  // 1. Récupère/génère l'audio VO
+  const audioUrl = await _ensureVOAudio(vo);
 
   // 2. Démarre l'audio (fallback muted si autoplay bloqué)
   let audioStarted = false;
@@ -1340,52 +1350,50 @@ async function playIntroSequence(introVO) {
         if (muteBtn) { muteBtn.textContent = '🔇'; muteBtn.classList.add('muted'); }
         await audioEl.play();
         audioStarted = true;
-      } catch (e2) { /* on continue sans audio */ }
+      } catch (e2) { /* sans audio */ }
     }
   }
 
-  // 3. Récupère la durée pour répartir les phrases (fallback estimé)
+  // 3. Durée audio pour répartir les phrases (fallback estimé)
   if (audioStarted && (!audioEl.duration || !isFinite(audioEl.duration))) {
     await new Promise(res => {
-      const done = () => res();
-      audioEl.addEventListener('loadedmetadata', done, { once: true });
-      setTimeout(done, 1500);
+      audioEl.addEventListener('loadedmetadata', res, { once: true });
+      setTimeout(res, 1500);
     });
   }
-  const lines = introVO.scriptLines || [];
+  const lines = vo.scriptLines || [];
   let totalDur = audioEl.duration && isFinite(audioEl.duration) ? audioEl.duration : 0;
   if (!totalDur) {
     const totalChars = lines.reduce((s, l) => s + l.length, 0);
-    totalDur = Math.max(8, totalChars * 0.07); // ~70ms / char fallback
+    totalDur = Math.max(6, totalChars * 0.07);
   }
   const sliceSec = totalDur / Math.max(1, lines.length);
 
-  // 4. Boucle phrases : attend le timing audio, puis typewriter
-  for (let i = 0; i < lines.length && !_introSkipRequested; i++) {
+  // 4. Phrases : sync audio puis typewriter
+  for (let i = 0; i < lines.length && !_voSkipRequested; i++) {
     const phraseStart = sliceSec * i;
     if (audioStarted) {
-      while (audioEl.currentTime < phraseStart && !audioEl.ended && !_introSkipRequested) {
+      while (audioEl.currentTime < phraseStart && !audioEl.ended && !_voSkipRequested) {
         await new Promise(res => setTimeout(res, 80));
       }
     } else if (i > 0) {
-      // Pas d'audio : courte pause entre phrases pour la lisibilité
       await new Promise(res => setTimeout(res, 600));
     }
-    if (_introSkipRequested) break;
+    if (_voSkipRequested) break;
     const charSpeed = Math.max(22, Math.min(55, (sliceSec * 1000 * 0.55) / Math.max(1, lines[i].length)));
     await _typewriter(textEl, lines[i], charSpeed);
   }
   textEl.classList.add('done');
 
-  // 5. Attend la fin de l'audio (avec safety timeout)
-  if (audioStarted && !_introSkipRequested) {
+  // 5. Attend la fin de l'audio
+  if (audioStarted && !_voSkipRequested) {
     await new Promise(res => {
       if (audioEl.ended) return res();
       audioEl.addEventListener('ended', res, { once: true });
       setTimeout(res, (totalDur + 2) * 1000);
     });
-  } else if (!_introSkipRequested) {
-    await new Promise(res => setTimeout(res, 700));
+  } else if (!_voSkipRequested) {
+    await new Promise(res => setTimeout(res, 500));
   }
 
   // 6. Cleanup
@@ -1394,8 +1402,32 @@ async function playIntroSequence(introVO) {
   overlay.classList.remove('show');
   document.body.classList.remove('intro-active');
   textEl.textContent = '';
+}
 
-  // 7. Direct vers les choix de la 1re étape (la VO remplace "Êtes-vous prêt ?")
+// Joue la VO contexte d'un step (situation narrée). Texte = scriptLines si fourni
+// par le studio, sinon fallback sur step.contextVO.text ou step.situation découpé en phrases.
+async function playStepContextVO(step) {
+  if (!step) return;
+  const cv = step.contextVO;
+  if (!cv) return;
+  if (!cv.audioUrl && !cv.text && !step.situation) return;
+  const lines = Array.isArray(cv.scriptLines) && cv.scriptLines.length
+    ? cv.scriptLines
+    : _splitIntoPhrases(cv.text || step.situation || '');
+  if (!cv.audioUrl && !lines.length) return;
+  await playVOOverlay({
+    voice: cv.voice || (demo && demo.introVO && demo.introVO.voice) || 'lucie',
+    scriptLines: lines,
+    audioUrl: cv.audioUrl || null,
+  });
+}
+
+async function playIntroSequence(introVO) {
+  await playVOOverlay(introVO);
+  // Enchaîne avec la VO contexte du 1er step si présente — sinon on n'a rien
+  // pour cadrer la 1re question (l'avatar n'a pas encore parlé).
+  const firstStep = demo && demo.steps && demo.steps[0];
+  if (firstStep) await playStepContextVO(firstStep);
   showChoicesForCurrentStep();
 }
 
@@ -2324,6 +2356,8 @@ async function advanceAfterCorrect() {
   }
   // Joue la vidéo de cette étape (la "réaction" de Sophie au choix précédent)
   await playVideoOnce(step.videoUrl, { fallbackText: step.avatarText, caption: step.avatarText, audioUrl: step.audioUrl });
+  // Puis la VO de contexte (narration de la situation) si configurée
+  await playStepContextVO(step);
   showChoicesForCurrentStep();
 }
 
