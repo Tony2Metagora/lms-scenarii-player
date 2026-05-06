@@ -99,14 +99,14 @@
     }
     .video-frame video {
       width: 100%; height: 100%;
-      object-fit: contain;
+      object-fit: cover; /* recadre pour remplir la frame sans bandes noires (avatar centré, edges légèrement croppés) */
       background: #1a1410;
     }
     /* 2 layers superposés pour crossfade entre vidéos (évite le flash noir) */
     .video-layer {
       position: absolute; inset: 0;
       width: 100%; height: 100%;
-      object-fit: contain;
+      object-fit: cover; /* idem : pas de pillarbox sur desktop large */
       background: #1a1410;
       opacity: 0;
       transition: opacity .35s ease-in-out;
@@ -1160,6 +1160,16 @@
       <div class="missing-list" id="missing-list"></div>
     </div>
 
+    <div class="end-section" id="end-comment-section">
+      <h2>💬 Votre commentaire</h2>
+      <p style="font-size: 13px; color: #6b5a3f; margin: 0 0 12px 0; line-height: 1.5;">Un retour à chaud sur l'expérience ? L'équipe pédagogique le lira pour améliorer la formation.</p>
+      <textarea id="end-comment-input" rows="4" placeholder="Ce qui vous a marqué, ce qui a manqué, une suggestion…" style="width:100%; padding: 10px 12px; border: 1px solid rgba(184,134,11,0.3); border-radius: 8px; font-family: inherit; font-size: 13px; line-height: 1.5; resize: vertical; box-sizing: border-box; background: rgba(255,255,255,0.85);"></textarea>
+      <div style="display:flex; gap:10px; align-items:center; margin-top: 10px;">
+        <button id="end-comment-submit" type="button" style="padding: 10px 22px; border-radius: 999px; border:0; background: linear-gradient(135deg, #b8860b, #d4a017); color:white; font-weight:700; font-family:inherit; font-size:13px; cursor:pointer;">Envoyer mon commentaire</button>
+        <span id="end-comment-status" style="font-size:11px; color:#6b5a3f;"></span>
+      </div>
+    </div>
+
     <div class="end-actions">
       <button class="restart" id="end-restart">↻ Recommencer</button>
     </div>
@@ -2015,9 +2025,14 @@ function setMode(mode) {
   const replayCta = document.getElementById('replay-cta');
   if (mode === 'choices') {
     main.classList.add('choices-only');
-    // Pause la vidéo en cours pour couper le son si elle joue encore
-    const v = document.querySelector('#video-frame video');
-    if (v) { try { v.pause(); } catch (e) {} }
+    // Coupe l'audio cliente si une réplique est encore en train de jouer.
+    // Avant on pausait `#video-frame video` (1er <video>) ce qui figeait l'idle
+    // sur image statique quand l'idle tournait sur video-a → bug "plus d'idle
+    // après Découverte" reporté par Tony.
+    const audioEl = document.getElementById('step-audio');
+    if (audioEl && audioEl.src && !audioEl.paused) {
+      try { audioEl.pause(); } catch (e) {}
+    }
     // Réaffiche le bouton replay si on a une dernière prise de parole à rejouer
     if (replayCta) replayCta.style.display = lastAvatarReplay ? '' : 'none';
   } else {
@@ -2938,6 +2953,50 @@ document.getElementById('end-restart').addEventListener('click', () => {
   if (!demo) return;
   loadDemoAndAutoStart(demo);
 });
+
+// Soumission du commentaire en fin de simulation. Posté à /api/save-comment
+// avec le slug de la démo + prénom + stats. La liste est consultable dans
+// l'admin (viewer.html) sous l'onglet "Démos jouées".
+(function bindEndCommentSubmit() {
+  const submitBtn = document.getElementById('end-comment-submit');
+  const inputEl = document.getElementById('end-comment-input');
+  const statusEl = document.getElementById('end-comment-status');
+  if (!submitBtn || !inputEl || !statusEl) return;
+  submitBtn.addEventListener('click', async () => {
+    const comment = (inputEl.value || '').trim();
+    if (comment.length < 3) { statusEl.textContent = 'Au moins 3 caractères.'; statusEl.style.color = '#dc2626'; return; }
+    if (comment.length > 2000) { statusEl.textContent = 'Trop long (max 2000).'; statusEl.style.color = '#dc2626'; return; }
+    if (!demo || !demo._slug) { statusEl.textContent = 'Démo non identifiée.'; statusEl.style.color = '#dc2626'; return; }
+    submitBtn.disabled = true;
+    statusEl.textContent = 'Envoi…';
+    statusEl.style.color = '#6b5a3f';
+    try {
+      const r = await fetch('/api/save-demo?action=comment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          slug: demo._slug,
+          prenom: userFirstName || 'Anonyme',
+          comment,
+          totalScore,
+          attempts,
+          errors: wrongClicks ? wrongClicks.length : 0,
+          durationSec: Math.round((Date.now() - (startTime || Date.now())) / 1000),
+        }),
+      });
+      const data = await r.json();
+      if (!r.ok) throw new Error(data.error || 'HTTP ' + r.status);
+      statusEl.textContent = '✓ Merci, votre retour est enregistré.';
+      statusEl.style.color = '#16a34a';
+      inputEl.disabled = true;
+      submitBtn.style.display = 'none';
+    } catch (err) {
+      statusEl.textContent = '⚠ ' + err.message;
+      statusEl.style.color = '#dc2626';
+      submitBtn.disabled = false;
+    }
+  });
+})();
 
 // ============================================================================
 // Partage
