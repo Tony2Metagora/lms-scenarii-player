@@ -223,6 +223,30 @@
       padding: 4px 0;
     }
 
+    /* Bouton replay vidéo cliente (au-dessus des choix) */
+    .replay-cta {
+      flex-shrink: 0;
+      text-align: center;
+      margin: 0 auto 6px;
+    }
+    .replay-cta button {
+      background: rgba(184,134,11,0.08);
+      border: 1px solid rgba(184,134,11,0.35);
+      color: #b8860b;
+      font-family: inherit;
+      font-size: 12px; font-weight: 600;
+      letter-spacing: .04em;
+      padding: 6px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: all .2s;
+    }
+    .replay-cta button:hover {
+      background: rgba(184,134,11,0.18);
+      border-color: rgba(184,134,11,0.6);
+    }
+    .replay-cta button:disabled { opacity: .55; cursor: not-allowed; }
+
     /* Choix */
     .choices-grid {
       flex-shrink: 0;
@@ -800,6 +824,7 @@
       .video-container { padding: 0 12px; }
       .crest-burst { font-size: 100px; }
       .question { font-size: 11px; padding: 2px 0; }
+      .replay-cta button { font-size: 11px; padding: 5px 12px; }
 
       /* CHOIX EN CAROUSEL HORIZONTAL — swipe gauche/droite */
       .choices-grid {
@@ -887,6 +912,10 @@
   </div>
 
   <div class="question" id="question-label">&nbsp;</div>
+
+  <div class="replay-cta" id="replay-cta" style="display:none">
+    <button type="button" id="replay-btn">↻ Réécouter la cliente</button>
+  </div>
 
   <div class="choices-grid" id="choices-grid"></div>
 
@@ -1277,22 +1306,28 @@ function updateStepTimeline() {
     else if (i === pickStep) el.classList.add('current');
   });
   lines.forEach((el, i) => el.classList.toggle('done', i < pickStep));
-  // Version mobile compacte
+  // Indicateur "Phase X" + compteur "i/N" au sein de la phase courante.
+  // Convention : i = nb d'étapes complétées dans la phase (0 avant la 1re réponse,
+  // N quand toute la phase est faite). Pour le step final isLast, on affiche "Phase Conclusion 0/1".
   const interactive = (demo.steps || []).filter(s => !s.isLast && s.choices && s.choices.length);
   const total = interactive.length;
   const cur = Math.min(pickStep, total - 1);
   const curStep = interactive[cur] || interactive[0];
+  const mobilePhase = document.getElementById('mobile-current-phase');
+  const mobileProgress = document.getElementById('mobile-current-progress');
   if (curStep) {
-    const phaseLabel = curStep.phaseLabel || curStep.phase || '?';
     const isOnFinal = pickStep >= total;
-    const mobilePhase = document.getElementById('mobile-current-phase');
-    const mobileProgress = document.getElementById('mobile-current-progress');
     if (isOnFinal) {
-      if (mobilePhase) mobilePhase.textContent = 'Conclusion';
-      if (mobileProgress) mobileProgress.textContent = '';
+      if (mobilePhase) mobilePhase.textContent = 'Phase Conclusion';
+      if (mobileProgress) mobileProgress.textContent = '0/1';
     } else {
-      if (mobilePhase) mobilePhase.textContent = phaseLabel;
-      if (mobileProgress) mobileProgress.textContent = `Étape ${cur + 1}/${total}`;
+      const phase = curStep.phase || 'Découverte';
+      const phaseSteps = interactive.filter(s => (s.phase || 'Découverte') === phase);
+      const phaseTotal = phaseSteps.length;
+      const phaseIdx = phaseSteps.indexOf(curStep);
+      const phaseDone = Math.max(0, phaseIdx);
+      if (mobilePhase) mobilePhase.textContent = `Phase ${phase}`;
+      if (mobileProgress) mobileProgress.textContent = `${phaseDone}/${phaseTotal}`;
     }
   }
 }
@@ -1373,6 +1408,10 @@ document.getElementById('demo-input').addEventListener('change', async (e) => {
 // État global du son (par défaut : son activé)
 let isMuted = false;
 
+// Dernière vidéo/audio cliente jouée (pour le bouton "Réécouter la cliente")
+let lastAvatarReplay = null;  // { url, audioUrl, caption } | null
+let replayInProgress = false;
+
 // Prénom de l'apprenant (saisi à l'écran d'accueil)
 let userFirstName = '';
 const STORAGE_KEY_FIRST_NAME = 'mg_user_first_name';
@@ -1407,13 +1446,18 @@ function showWelcomeForm() {
 function setMode(mode) {
   const main = document.querySelector('main');
   if (!main) return;
+  const replayCta = document.getElementById('replay-cta');
   if (mode === 'choices') {
     main.classList.add('choices-only');
     // Pause la vidéo en cours pour couper le son si elle joue encore
     const v = document.querySelector('#video-frame video');
     if (v) { try { v.pause(); } catch (e) {} }
+    // Réaffiche le bouton replay si on a une dernière prise de parole à rejouer
+    if (replayCta) replayCta.style.display = lastAvatarReplay ? '' : 'none';
   } else {
     main.classList.remove('choices-only');
+    // Cache le bouton replay pendant qu'une vidéo joue
+    if (replayCta) replayCta.style.display = 'none';
   }
 }
 
@@ -1654,6 +1698,15 @@ function armIdleChain(currentVideo) {
 async function playStep(url, opts) {
   const frame = document.getElementById('video-frame');
   if (!url) { startIdleLoop(); return; }
+  // Mémorise la dernière prise de parole de la cliente pour le bouton replay.
+  // Pas pendant une relecture (sinon état figé), ni pour le step final isLast/success.
+  if (!replayInProgress && !(opts && opts.success)) {
+    lastAvatarReplay = {
+      url,
+      audioUrl: (opts && opts.audioUrl) || null,
+      caption: (opts && opts.caption) || null,
+    };
+  }
   stopIdleLoop();
 
   frame.classList.remove('success');
@@ -1783,6 +1836,37 @@ function playVideoOnce(url, opts) {
   return playStep(url, opts);
 }
 
+// Bouton "Réécouter la cliente" : rejoue la dernière vidéo+audio de l'avatar
+// pendant que les choix sont affichés. À la fin, on revient au mode choix.
+async function replayLastAvatar() {
+  if (!lastAvatarReplay || replayInProgress) return;
+  const replayBtn = document.getElementById('replay-btn');
+  replayInProgress = true;
+  if (replayBtn) {
+    replayBtn.disabled = true;
+    replayBtn.textContent = '… La cliente parle';
+  }
+  setMode('video');
+  try {
+    await playStep(lastAvatarReplay.url, {
+      audioUrl: lastAvatarReplay.audioUrl,
+      caption: lastAvatarReplay.caption,
+    });
+  } finally {
+    setMode('choices');
+    if (replayBtn) {
+      replayBtn.disabled = false;
+      replayBtn.textContent = '↻ Réécouter la cliente';
+    }
+    replayInProgress = false;
+  }
+}
+
+(function bindReplayButton() {
+  const btn = document.getElementById('replay-btn');
+  if (btn) btn.addEventListener('click', replayLastAvatar);
+})();
+
 // ============================================================================
 // Affichage des choix
 // ============================================================================
@@ -1795,10 +1879,12 @@ function showChoicesForCurrentStep() {
   const step = demo.steps[pickStep];
   if (step.isLast || !(step.choices && step.choices.length)) {
     // Step final sans choix : juste sa vidéo puis fin
+    updateStepTimeline(); // bascule l'indicateur sur "Phase Conclusion 0/1"
     playVideoOnce(step.videoUrl, { fallbackText: step.avatarText, caption: step.avatarText, success: true, audioUrl: step.audioUrl }).then(() => showEnd());
     return;
   }
   // Mode choix : on cache la vidéo, les 4 propositions prennent l'écran
+  // (setMode gère aussi l'affichage du bouton "Réécouter la cliente")
   setMode('choices');
   updateStepTimeline();
   updateScoreDisplay();
