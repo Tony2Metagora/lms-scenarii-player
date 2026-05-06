@@ -1346,7 +1346,7 @@ async function _ensureVOAudio(vo) {
     const r = await fetch('/api/elevenlabs-tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text: fullText, voice: vo.voice || 'lucie' }),
+      body: JSON.stringify({ text: fullText, voice: vo.voice || 'narrator' }),
     });
     const data = await r.json();
     if (r.ok && data.url) {
@@ -1482,7 +1482,7 @@ async function playStepContextVO(step) {
     : _splitIntoPhrases(cv.text || step.situation || '');
   if (!cv.audioUrl && !lines.length) return;
   await playVOOverlay({
-    voice: cv.voice || (demo && demo.introVO && demo.introVO.voice) || 'lucie',
+    voice: cv.voice || (demo && demo.introVO && demo.introVO.voice) || 'narrator',
     scriptLines: lines,
     audioUrl: cv.audioUrl || null,
   });
@@ -1743,7 +1743,7 @@ async function tryLoadFromQuery() {
       // par config studio quand Sprint D sera livré).
       if (!cfg.introVO && /hermes|hermès/i.test(slug)) {
         cfg.introVO = {
-          voice: 'lucie',
+          voice: 'narrator',
           scriptLines: [
             'Bienvenue dans votre expérience de formation interactive. Si vous le pouvez, allumez le son.',
             'Un client va arriver dans la boutique d\'une seconde à l\'autre.',
