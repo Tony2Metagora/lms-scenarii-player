@@ -1030,6 +1030,7 @@
     <p>Avant de commencer la simulation, dites-nous comment vous appeler.</p>
     <label for="welcome-input">Votre prénom</label>
     <input type="text" id="welcome-input" autocomplete="given-name" placeholder="Camille, Tony, Sophie…" maxlength="40" />
+    <select id="welcome-select" style="display:none; width:100%; padding:14px 18px; font-size:17px; border:1.5px solid rgba(184,134,11,0.3); border-radius:10px; font-family:inherit; color:#3a2f20; background:rgba(255,255,255,0.85); box-sizing:border-box; margin-bottom:22px;"></select>
     <button id="welcome-submit" type="button">Commencer</button>
   </div>
 </div>
@@ -1575,13 +1576,29 @@ async function loadDemo(data) {
   // 2. Précharge en arrière-plan les vidéos + audios des steps (warm le cache HTTP).
   preloadStepVideos();
 
-  // 3. Si la démo a une intro VO configurée → on la joue (remplace "Êtes-vous prêt ?").
-  //    Sinon fallback legacy.
+  // L'auto-start de l'intro est différé : le boot sequencer appelle
+  // d'abord showWelcomeForm (qui peut maintenant afficher une dropdown
+  // de prénoms si demo.introGreeting est configuré), puis la VO d'accueil
+  // personnalisée, puis _startIntroOrPrompt(). Pour les flows hors boot
+  // (restart, file upload) on a un wrapper loadDemoAndAutoStart.
+}
+
+function _startIntroOrPrompt() {
+  if (!demo) return;
   if (demo.introVO && (demo.introVO.audioUrl || (Array.isArray(demo.introVO.scriptLines) && demo.introVO.scriptLines.length))) {
     playIntroSequence(demo.introVO);
   } else {
     showAdvisorPrompt();
   }
+}
+
+// Wrapper legacy pour les call sites qui ne passent pas par le boot sequencer
+// (restart depuis end-screen, advisor-no goodbye, file upload manuel).
+async function loadDemoAndAutoStart(data) {
+  await loadDemo(data);
+  // On joue l'accueil personnalisé pour le prénom déjà saisi, puis intro/prompt.
+  await maybePlayPersonalizedGreeting();
+  _startIntroOrPrompt();
 }
 
 function showAdvisorPrompt() {
@@ -1633,7 +1650,7 @@ function showAdvisorGoodbye() {
     </button>
   `;
   document.getElementById('advisor-restart').addEventListener('click', () => {
-    if (demo) loadDemo(demo);
+    if (demo) loadDemoAndAutoStart(demo);
   });
 }
 
@@ -1777,7 +1794,7 @@ document.getElementById('demo-input').addEventListener('change', async (e) => {
   try {
     const data = JSON.parse(await file.text());
     data._isLocal = true;
-    await loadDemo(data);
+    await loadDemoAndAutoStart(data);
   } catch (err) {
     alert('JSON invalide : ' + err.message);
   }
@@ -1802,16 +1819,40 @@ function showWelcomeForm() {
   return new Promise((resolve) => {
     const overlay = document.getElementById('welcome-overlay');
     const input = document.getElementById('welcome-input');
+    const select = document.getElementById('welcome-select');
     const btn = document.getElementById('welcome-submit');
-    try { input.value = localStorage.getItem(STORAGE_KEY_FIRST_NAME) || ''; } catch (e) {}
+
+    // Si la démo a un accueil personnalisé avec une liste de prénoms validés,
+    // on bascule l'input texte en dropdown verrouillée sur cette liste.
+    const hasGreetingList = !!(demo && demo.introGreeting
+      && Array.isArray(demo.introGreeting.items)
+      && demo.introGreeting.items.length);
+    let useSelect = false;
+    if (hasGreetingList) {
+      const items = demo.introGreeting.items;
+      const stored = (() => { try { return localStorage.getItem(STORAGE_KEY_FIRST_NAME) || ''; } catch (e) { return ''; } })();
+      select.innerHTML = items.map(it => {
+        const sel = stored && stored.toLowerCase() === it.prenom.toLowerCase() ? ' selected' : '';
+        return `<option value="${escapeHtml(it.prenom)}"${sel}>${escapeHtml(it.prenom)}</option>`;
+      }).join('');
+      input.style.display = 'none';
+      select.style.display = '';
+      useSelect = true;
+    } else {
+      try { input.value = localStorage.getItem(STORAGE_KEY_FIRST_NAME) || ''; } catch (e) {}
+      input.style.display = '';
+      select.style.display = 'none';
+    }
+
     overlay.classList.add('show');
-    setTimeout(() => input.focus(), 200);
+    setTimeout(() => (useSelect ? select : input).focus(), 200);
 
     const submit = () => {
-      const raw = (input.value || '').trim();
+      const raw = useSelect ? (select.value || '').trim() : (input.value || '').trim();
       if (raw.length < 2) {
-        input.classList.add('shake');
-        setTimeout(() => input.classList.remove('shake'), 400);
+        const target = useSelect ? select : input;
+        target.classList.add('shake');
+        setTimeout(() => target.classList.remove('shake'), 400);
         return;
       }
       userFirstName = raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase();
@@ -1821,6 +1862,25 @@ function showWelcomeForm() {
     };
     btn.onclick = submit;
     input.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } };
+    select.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); submit(); } };
+  });
+}
+
+// Joue l'accueil personnalisé "Bonjour {Prénom}, bienvenue chez {Marque}…" si
+// le studio a configuré et validé une voix pour le prénom courant.
+async function maybePlayPersonalizedGreeting() {
+  if (!demo || !demo.introGreeting || !Array.isArray(demo.introGreeting.items)) return;
+  if (!userFirstName) return;
+  const item = demo.introGreeting.items.find(it =>
+    it.prenom && it.prenom.toLowerCase() === userFirstName.toLowerCase()
+  );
+  if (!item || !item.audioUrl) return;
+  const brand = (demo.introGreeting.brand || '').trim() || 'la maison';
+  const text = `Bonjour ${userFirstName}, bienvenue chez ${brand}. Vous incarnez aujourd'hui notre savoir-faire : un Advisor formé à l'attention et au détail.`;
+  await playVOOverlay({
+    voice: 'narrator',
+    scriptLines: [text],
+    audioUrl: item.audioUrl,
   });
 }
 
@@ -2752,7 +2812,7 @@ document.getElementById('missing-toggle').addEventListener('click', () => {
 
 document.getElementById('end-restart').addEventListener('click', () => {
   if (!demo) return;
-  loadDemo(demo);
+  loadDemoAndAutoStart(demo);
 });
 
 // ============================================================================
@@ -2846,8 +2906,19 @@ function escapeHtml(s) {
 // ============================================================================
 
 (async () => {
+  // 1. Charge la démo silencieusement (loadDemo n'auto-start plus l'intro).
+  await tryLoadFromQuery();
+  // 2. Si rien n'a été chargé (empty-state visible avec file picker manuel),
+  //    on attend que l'user upload — loadDemoAndAutoStart prendra le relais.
+  if (!demo) return;
+  // 3. Welcome form : dropdown des prénoms si demo.introGreeting est dispo,
+  //    sinon free input (compat ascendante).
   await showWelcomeForm();
-  tryLoadFromQuery();
+  // 4. Accueil personnalisé "Bonjour {Prénom}, bienvenue chez {Marque}…"
+  //    (si le studio a sauvegardé un audio pour ce prénom).
+  await maybePlayPersonalizedGreeting();
+  // 5. VO d'intro générique + 1re étape (ou fallback "Êtes-vous prêt ?").
+  _startIntroOrPrompt();
 })();
 </script>
 
