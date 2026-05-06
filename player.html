@@ -1484,36 +1484,64 @@ async function playVOOverlay(vo, opts) {
       setTimeout(res, 1500);
     });
   }
-  const lines = vo.scriptLines || [];
+  const lines = (vo.scriptLines || []).map(l => _cleanForDisplay(l)).filter(Boolean);
   let totalDur = audioEl.duration && isFinite(audioEl.duration) ? audioEl.duration : 0;
   if (!totalDur) {
     const totalChars = lines.reduce((s, l) => s + l.length, 0);
     totalDur = Math.max(6, totalChars * 0.07);
   }
-  const sliceSec = totalDur / Math.max(1, lines.length);
 
-  // 4. Phrases : sync audio puis typewriter
+  // 4. Calcule les bornes audio par phrase, en tenant compte des <break time="0.7s" />
+  //    insérés entre les lignes côté envoi à ElevenLabs. Du coup chaque caractère
+  //    a un target audio.currentTime précis et le typewriter ne devance plus la voix.
+  const totalSpokenChars = Math.max(1, lines.reduce((s, l) => s + l.length, 0));
+  const breakSec = 0.7;
+  const totalBreakSec = Math.max(0, (lines.length - 1) * breakSec);
+  const totalSpokenSec = Math.max(0.5, totalDur - totalBreakSec);
+  const spokenPerChar = totalSpokenSec / totalSpokenChars;
+
+  let cursorTime = 0;
   for (let i = 0; i < lines.length && !_voSkipRequested; i++) {
-    const phraseStart = sliceSec * i;
+    const line = lines[i];
+    const phraseStart = cursorTime;
+    const phraseDur = Math.max(0.3, line.length * spokenPerChar);
+    cursorTime = phraseStart + phraseDur + breakSec;
+
+    // Attend que l'audio atteigne le début de la phrase
     if (audioStarted) {
-      while (audioEl.currentTime < phraseStart && !audioEl.ended && !_voSkipRequested) {
-        await new Promise(res => setTimeout(res, 80));
+      while (audioEl.currentTime < phraseStart - 0.03 && !audioEl.ended && !_voSkipRequested) {
+        await new Promise(res => setTimeout(res, 40));
       }
     } else if (i > 0) {
-      await new Promise(res => setTimeout(res, 600));
+      await new Promise(res => setTimeout(res, (phraseDur + breakSec) * 1000));
     }
     if (_voSkipRequested) break;
-    const charSpeed = Math.max(22, Math.min(55, (sliceSec * 1000 * 0.55) / Math.max(1, lines[i].length)));
-    await _typewriter(textEl, lines[i], charSpeed);
+
+    // Typewriter caractère par caractère, chaque char attend sa position audio
+    textEl.classList.remove('done');
+    textEl.textContent = '';
+    for (let j = 0; j < line.length; j++) {
+      if (_voSkipRequested) { textEl.textContent = line; break; }
+      if (audioStarted) {
+        const charTarget = phraseStart + ((j + 1) / line.length) * phraseDur;
+        while (audioEl.currentTime < charTarget - 0.02 && !audioEl.ended && !_voSkipRequested) {
+          await new Promise(res => setTimeout(res, 25));
+        }
+      } else {
+        await new Promise(res => setTimeout(res, (phraseDur * 1000) / Math.max(1, line.length)));
+      }
+      textEl.textContent = line.slice(0, j + 1);
+    }
   }
   textEl.classList.add('done');
 
-  // 5. Attend la fin de l'audio
+  // 5. Attend la fin TOTALE de l'audio avant de rendre la main (sinon le caller
+  //    enchaîne sur le prompt suivant alors que la VO est encore en train de parler).
   if (audioStarted && !_voSkipRequested) {
     await new Promise(res => {
       if (audioEl.ended) return res();
       audioEl.addEventListener('ended', res, { once: true });
-      setTimeout(res, (totalDur + 2) * 1000);
+      setTimeout(res, Math.max(2000, (totalDur + 3) * 1000));
     });
   } else if (!_voSkipRequested) {
     await new Promise(res => setTimeout(res, 500));
@@ -1646,36 +1674,50 @@ async function _activatePreloadedEntry(preloadedLayer) {
 async function playIntroSequence(introVO) {
   const introBgUrl = demo && demo.introVideo && demo.introVideo.videoUrl;
 
-  // 1. Précharge l'entry video sur le layer INACTIF (donc invisible, opacity 0).
-  //    Le browser commence le téléchargement+décodage pendant que la VO joue.
+  // 1. CRITIQUE : stoppe l'idle loop AVANT de précharger l'entry video.
+  //    Sinon armIdleChain écrase le src du layer inactif ~400ms avant chaque
+  //    fin de cycle d'idle (pre-warm des idles enchaînés). Résultat : quand
+  //    l'user clique Oui, le src du layer a été remplacé par une URL d'idle
+  //    aléatoire au lieu de l'entry video. Bug reporté 3× par Tony.
+  //    On boucle l'idle en cours pour que Sophie continue d'animer.
+  stopIdleLoop();
+  if (introBgUrl) {
+    const layerA = document.getElementById('video-a');
+    const layerB = document.getElementById('video-b');
+    const currentActive = layerA.classList.contains('active') ? layerA : layerB;
+    currentActive.loop = true;
+    try { if (currentActive.paused) currentActive.play().catch(() => {}); } catch (e) {}
+  }
+
+  // 2. Précharge l'entry video sur le layer INACTIF (opacity 0, invisible).
   const preloadedLayer = await _preloadEntryOnInactiveLayer(introBgUrl);
 
-  // 2. Joue la VO d'intro sur le fond idle Sophie (pas de swap pour le moment).
-  //    keepOverlayOpen pour enchaîner avec le ready prompt sans flicker.
+  // 3. Joue la VO d'intro avec overlay typewriter qui reste ouvert pour
+  //    enchaîner avec le ready prompt.
   await playVOOverlay(introVO, { keepOverlayOpen: true });
 
-  // 3. "Êtes-vous prêt(e) à rencontrer la cliente ?" + boutons Oui/Non
+  // 4. "Êtes-vous prêt(e) ?" + boutons Oui/Non
   const userReady = await showReadyPrompt();
 
   if (!userReady) {
-    // Annulation : on libère le layer préchargé en le repassant inactif
     if (preloadedLayer) {
       try { preloadedLayer.removeAttribute('src'); preloadedLayer.load(); } catch (e) {}
     }
+    // Réactive l'idle loop normal avant de partir
+    startIdleLoop();
     showAdvisorGoodbye();
     return;
   }
 
-  // 4. Active le layer préchargé en crossfade : l'entry video (déjà chargée)
-  //    apparaît en fade-in, l'idle Sophie en fade-out. 350ms de transition.
+  // 5. Active le layer préchargé en crossfade (entry video déjà chargée).
   let backdropState = null;
   if (preloadedLayer) backdropState = await _activatePreloadedEntry(preloadedLayer);
 
-  // 5. VO contexte du 1er step par-dessus l'entry video
+  // 6. VO contexte du 1er step par-dessus l'entry video
   const firstStep = demo && demo.steps && demo.steps[0];
   if (firstStep) await playStepContextVO(firstStep);
 
-  // 6. Retour à l'idle Sophie + choix
+  // 7. Retour à l'idle Sophie + choix
   if (backdropState) _restoreIntroBackdrop(backdropState);
   showChoicesForCurrentStep();
 }
