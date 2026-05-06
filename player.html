@@ -1398,16 +1398,20 @@ async function _ensureVOAudio(vo) {
   return null;
 }
 
-// Nettoie le texte avant affichage typewriter : retire les balises SSML
-// <break time="X" /> et les ellipses (…, ...). Ces marqueurs servent uniquement
-// à donner des pauses à ElevenLabs pour la VO, ils ne doivent pas s'afficher.
+// Nettoie le texte avant affichage typewriter :
+// - Retire les balises SSML <break time="X" /> (servent juste à ElevenLabs)
+// - Remplace les ellipses (… ou ...) par un point simple. Tony écrit "..." dans
+//   son script pour donner une pause à ElevenLabs ; à l'affichage on veut
+//   "détail. Bienvenue" pas "détail Bienvenue" (sans point).
 function _cleanForDisplay(text) {
   return String(text || '')
     .replace(/<break\b[^>]*\/?>/gi, '')   // <break time="X" /> et variantes
     .replace(/<\/break\s*>/gi, '')         // </break> au cas où
-    .replace(/…+/g, '')                    // ellipses unicode
-    .replace(/\.{3,}/g, '')                // 3+ points
-    .replace(/\s{2,}/g, ' ')               // double espaces
+    .replace(/…+/g, '.')                    // ellipses unicode → point
+    .replace(/\.{3,}/g, '.')                // 3+ points → point
+    .replace(/\s+\./g, '.')                 // " ." → "." (espace avant point résiduel)
+    .replace(/\.\s*\./g, '.')               // ".." après collapse → "."
+    .replace(/\s{2,}/g, ' ')                // double espaces
     .trim();
 }
 
@@ -1686,7 +1690,11 @@ async function playIntroSequence(introVO) {
   if (introBgUrl) {
     console.log('[playIntroSequence] swap to entry video');
     try {
-      await swapToVideo(introBgUrl, { loop: false, instant: false });
+      // instant=true (cut sec) au lieu d'un crossfade : sinon la fade-in 350ms
+      // blend la dernière frame de l'idle Sophie (figée au centre) avec la 1re
+      // frame de l'entry video → Tony percevait ça comme "voir la cliente au
+      // milieu pendant 100-200ms avant que l'entry démarre".
+      await swapToVideo(introBgUrl, { loop: false, instant: true });
       const entryLayer = document.getElementById('video-' + activeLayer);
 
       // Réactive l'idle loop : armIdleChain attaché à la vidéo entry va
