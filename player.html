@@ -1488,12 +1488,46 @@ async function playStepContextVO(step) {
   });
 }
 
+// Swap le calque vidéo actif vers une vidéo de backdrop (loop, muted) — utilisé
+// pendant l'intro pour montrer la "cliente qui entre en boutique" floutée derrière
+// la bulle VO. Retourne un état permettant la restauration de l'idle après.
+async function _setIntroBackdrop(videoUrl) {
+  if (!videoUrl) return null;
+  stopIdleLoop();
+  const layerA = document.getElementById('video-a');
+  const layerB = document.getElementById('video-b');
+  if (!layerA || !layerB) return null;
+  // Travaille sur le calque actif (celui visible) pour éviter les flashes de transition
+  const active = layerA.classList.contains('active') ? layerA : layerB;
+  active.loop = true;
+  active.muted = true;
+  active.src = videoUrl;
+  try { active.currentTime = 0; await active.play(); } catch (e) { /* ignore autoplay block */ }
+  return { layer: active };
+}
+
+function _restoreIntroBackdrop(state) {
+  if (!state || !state.layer) return;
+  state.layer.loop = false;
+  try { state.layer.pause(); } catch (e) {}
+  // Réinitialise idle (qui va prendre la main et reprendre la boucle de respiration)
+  startIdleLoop();
+}
+
 async function playIntroSequence(introVO) {
+  // Backdrop : si la démo a une vidéo "cliente entre en boutique" configurée,
+  // on swap derrière l'overlay (idle Sophie remplacée pendant l'intro).
+  const introBgUrl = demo && demo.introVideo && demo.introVideo.videoUrl;
+  let backdropState = null;
+  if (introBgUrl) backdropState = await _setIntroBackdrop(introBgUrl);
+
   await playVOOverlay(introVO);
   // Enchaîne avec la VO contexte du 1er step si présente — sinon on n'a rien
   // pour cadrer la 1re question (l'avatar n'a pas encore parlé).
   const firstStep = demo && demo.steps && demo.steps[0];
   if (firstStep) await playStepContextVO(firstStep);
+
+  if (backdropState) _restoreIntroBackdrop(backdropState);
   showChoicesForCurrentStep();
 }
 
