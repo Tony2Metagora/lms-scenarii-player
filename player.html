@@ -608,6 +608,78 @@
       .welcome-card h1 { font-size: 24px; }
       .welcome-crest { font-size: 44px; }
     }
+
+    /* === INTRO VOICE-OVER : bulle centrale style machine à écrire ===
+       Pendant l'intro, on flouter le fond (idle Sophie continue de jouer derrière)
+       et on affiche une bulle qui type-writer-affiche les phrases du script VO. */
+    .intro-overlay {
+      position: fixed; inset: 0;
+      display: none;
+      align-items: center; justify-content: center;
+      padding: 24px;
+      z-index: 900;
+      background: rgba(40,30,20,0.45);
+      backdrop-filter: blur(14px) saturate(140%);
+      -webkit-backdrop-filter: blur(14px) saturate(140%);
+      animation: fadeIn .5s ease;
+    }
+    .intro-overlay.show { display: flex; }
+    /* Pendant l'intro VO, on remonte le bouton mute au-dessus de l'overlay
+       pour que le user puisse couper le son si besoin. */
+    body.intro-active .video-mute-btn { z-index: 950; }
+    .intro-bubble {
+      background: rgba(255,255,255,0.97);
+      border: 1px solid rgba(184,134,11,0.45);
+      border-radius: 28px;
+      padding: 38px 44px;
+      max-width: 580px;
+      width: 100%;
+      text-align: center;
+      box-shadow: 0 24px 70px rgba(0,0,0,0.35), 0 0 0 8px rgba(184,134,11,0.08);
+      position: relative;
+      box-sizing: border-box;
+    }
+    .intro-bubble::before {
+      content: '';
+      position: absolute; bottom: -14px; left: 50%; transform: translateX(-50%) rotate(45deg);
+      width: 22px; height: 22px;
+      background: rgba(255,255,255,0.97);
+      border-right: 1px solid rgba(184,134,11,0.45);
+      border-bottom: 1px solid rgba(184,134,11,0.45);
+    }
+    .intro-bubble-text {
+      font-family: 'Playfair Display', serif;
+      font-size: 22px;
+      line-height: 1.55;
+      color: #3a2f20;
+      font-weight: 500;
+      min-height: 100px;
+      letter-spacing: .01em;
+    }
+    .intro-bubble-text::after {
+      content: '|';
+      display: inline-block;
+      color: #b8860b;
+      margin-left: 2px;
+      animation: introCursorBlink .85s steps(2) infinite;
+      font-weight: 700;
+    }
+    .intro-bubble-text.done::after { display: none; }
+    @keyframes introCursorBlink { 50% { opacity: 0; } }
+    .intro-skip-hint {
+      position: absolute;
+      bottom: 24px; left: 0; right: 0;
+      text-align: center;
+      font-size: 11px;
+      color: rgba(255,255,255,0.65);
+      letter-spacing: .12em;
+      text-transform: uppercase;
+    }
+    @media (max-width: 720px) {
+      .intro-bubble { padding: 28px 22px; border-radius: 22px; }
+      .intro-bubble-text { font-size: 17px; min-height: 84px; }
+    }
+
     .end-section {
       background: rgba(255,255,255,0.72);
       border: 1px solid rgba(120,90,40,0.18);
@@ -896,6 +968,13 @@
   </div>
 </div>
 
+<div class="intro-overlay" id="intro-overlay">
+  <div class="intro-bubble">
+    <div class="intro-bubble-text" id="intro-bubble-text"></div>
+  </div>
+  <div class="intro-skip-hint" id="intro-skip-hint">touchez l'écran pour passer</div>
+</div>
+
 <main>
   <div class="video-container">
     <div class="video-frame" id="video-frame">
@@ -1169,6 +1248,158 @@ function hideBootLoader() {
 }
 
 // ============================================================================
+// Intro voice-over : bulle typewriter synchro audio (remplace "Êtes-vous prêt ?")
+// Lit le champ démo `introVO: { voice, scriptLines, audioUrl? }`. Si pas
+// d'audioUrl, génère via /api/elevenlabs-tts et cache en localStorage 6j.
+// ============================================================================
+
+let _introSkipRequested = false;
+
+function _introVOCacheKey(scriptLines, voice) {
+  const seed = (voice || 'default') + '::' + (scriptLines || []).join('|');
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = ((h << 5) - h + seed.charCodeAt(i)) | 0;
+  return 'lms:introvo:' + Math.abs(h).toString(36);
+}
+
+async function _ensureIntroVOAudio(introVO) {
+  if (introVO.audioUrl) return introVO.audioUrl;
+  if (!Array.isArray(introVO.scriptLines) || introVO.scriptLines.length === 0) return null;
+  const cacheKey = _introVOCacheKey(introVO.scriptLines, introVO.voice);
+  try {
+    const raw = localStorage.getItem(cacheKey);
+    if (raw) {
+      const cached = JSON.parse(raw);
+      if (cached.url && cached.t && Date.now() - cached.t < 6 * 24 * 3600 * 1000) {
+        return cached.url;
+      }
+    }
+  } catch (e) { /* ignore */ }
+  try {
+    const fullText = introVO.scriptLines.join(' ');
+    const r = await fetch('/api/elevenlabs-tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: fullText, voice: introVO.voice || 'lucie' }),
+    });
+    const data = await r.json();
+    if (r.ok && data.url) {
+      try { localStorage.setItem(cacheKey, JSON.stringify({ url: data.url, t: Date.now() })); } catch (e) {}
+      return data.url;
+    }
+  } catch (e) { console.warn('VO TTS failed:', e); }
+  return null;
+}
+
+function _typewriter(el, text, charSpeedMs) {
+  return new Promise(resolve => {
+    el.classList.remove('done');
+    el.textContent = '';
+    let i = 0;
+    const tick = () => {
+      if (_introSkipRequested) { el.textContent = text; resolve(); return; }
+      if (i >= text.length) { resolve(); return; }
+      el.textContent += text[i++];
+      setTimeout(tick, charSpeedMs);
+    };
+    tick();
+  });
+}
+
+async function playIntroSequence(introVO) {
+  const overlay = document.getElementById('intro-overlay');
+  const textEl = document.getElementById('intro-bubble-text');
+  const audioEl = document.getElementById('step-audio');
+  if (!overlay || !textEl) { showAdvisorPrompt(); return; }
+
+  _introSkipRequested = false;
+  overlay.classList.add('show');
+  document.body.classList.add('intro-active');
+  const onSkipClick = (e) => {
+    // Ignore clic sur le bouton mute (remonté au-dessus de l'overlay via z-index)
+    if (e && e.target && e.target.closest('.video-mute-btn')) return;
+    _introSkipRequested = true;
+  };
+  overlay.addEventListener('click', onSkipClick);
+
+  // 1. Récupère / génère l'audio VO
+  const audioUrl = await _ensureIntroVOAudio(introVO);
+
+  // 2. Démarre l'audio (fallback muted si autoplay bloqué)
+  let audioStarted = false;
+  if (audioUrl) {
+    audioEl.src = audioUrl;
+    audioEl.muted = isMuted;
+    audioEl.currentTime = 0;
+    try { await audioEl.play(); audioStarted = true; }
+    catch (e) {
+      try {
+        audioEl.muted = true;
+        isMuted = true;
+        const muteBtn = document.getElementById('video-mute-btn');
+        if (muteBtn) { muteBtn.textContent = '🔇'; muteBtn.classList.add('muted'); }
+        await audioEl.play();
+        audioStarted = true;
+      } catch (e2) { /* on continue sans audio */ }
+    }
+  }
+
+  // 3. Récupère la durée pour répartir les phrases (fallback estimé)
+  if (audioStarted && (!audioEl.duration || !isFinite(audioEl.duration))) {
+    await new Promise(res => {
+      const done = () => res();
+      audioEl.addEventListener('loadedmetadata', done, { once: true });
+      setTimeout(done, 1500);
+    });
+  }
+  const lines = introVO.scriptLines || [];
+  let totalDur = audioEl.duration && isFinite(audioEl.duration) ? audioEl.duration : 0;
+  if (!totalDur) {
+    const totalChars = lines.reduce((s, l) => s + l.length, 0);
+    totalDur = Math.max(8, totalChars * 0.07); // ~70ms / char fallback
+  }
+  const sliceSec = totalDur / Math.max(1, lines.length);
+
+  // 4. Boucle phrases : attend le timing audio, puis typewriter
+  for (let i = 0; i < lines.length && !_introSkipRequested; i++) {
+    const phraseStart = sliceSec * i;
+    if (audioStarted) {
+      while (audioEl.currentTime < phraseStart && !audioEl.ended && !_introSkipRequested) {
+        await new Promise(res => setTimeout(res, 80));
+      }
+    } else if (i > 0) {
+      // Pas d'audio : courte pause entre phrases pour la lisibilité
+      await new Promise(res => setTimeout(res, 600));
+    }
+    if (_introSkipRequested) break;
+    const charSpeed = Math.max(22, Math.min(55, (sliceSec * 1000 * 0.55) / Math.max(1, lines[i].length)));
+    await _typewriter(textEl, lines[i], charSpeed);
+  }
+  textEl.classList.add('done');
+
+  // 5. Attend la fin de l'audio (avec safety timeout)
+  if (audioStarted && !_introSkipRequested) {
+    await new Promise(res => {
+      if (audioEl.ended) return res();
+      audioEl.addEventListener('ended', res, { once: true });
+      setTimeout(res, (totalDur + 2) * 1000);
+    });
+  } else if (!_introSkipRequested) {
+    await new Promise(res => setTimeout(res, 700));
+  }
+
+  // 6. Cleanup
+  try { audioEl.pause(); audioEl.removeAttribute('src'); } catch (e) {}
+  overlay.removeEventListener('click', onSkipClick);
+  overlay.classList.remove('show');
+  document.body.classList.remove('intro-active');
+  textEl.textContent = '';
+
+  // 7. Direct vers les choix de la 1re étape (la VO remplace "Êtes-vous prêt ?")
+  showChoicesForCurrentStep();
+}
+
+// ============================================================================
 // Chargement de la config démo
 // ============================================================================
 
@@ -1212,8 +1443,13 @@ async function loadDemo(data) {
   // 2. Précharge en arrière-plan les vidéos + audios des steps (warm le cache HTTP).
   preloadStepVideos();
 
-  // 3. Affiche la question + boutons Yes/No (l'idle joue derrière).
-  showAdvisorPrompt();
+  // 3. Si la démo a une intro VO configurée → on la joue (remplace "Êtes-vous prêt ?").
+  //    Sinon fallback legacy.
+  if (demo.introVO && (demo.introVO.audioUrl || (Array.isArray(demo.introVO.scriptLines) && demo.introVO.scriptLines.length))) {
+    playIntroSequence(demo.introVO);
+  } else {
+    showAdvisorPrompt();
+  }
 }
 
 function showAdvisorPrompt() {
@@ -1371,6 +1607,20 @@ async function tryLoadFromQuery() {
       cfg._slug = slug;
       cfg._websiteUrl = data.websiteUrl;
       cfg._isLocal = false;
+      // Fixture intro VO pour la démo Hermès (Sprint B test, à remplacer
+      // par config studio quand Sprint D sera livré).
+      if (!cfg.introVO && /hermes|hermès/i.test(slug)) {
+        cfg.introVO = {
+          voice: 'lucie',
+          scriptLines: [
+            'Bienvenue dans votre expérience de formation interactive. Si vous le pouvez, allumez le son.',
+            'Un client va arriver dans la boutique d\'une seconde à l\'autre.',
+            'Prenez le temps d\'observer son attitude.',
+            'Et imprégnez-vous du contexte avant de l\'aborder.',
+            'À vous de jouer !',
+          ],
+        };
+      }
       await loadDemo(cfg);
       return;
     }
