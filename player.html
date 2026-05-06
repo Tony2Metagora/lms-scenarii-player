@@ -1491,23 +1491,26 @@ async function playVOOverlay(vo, opts) {
     totalDur = Math.max(6, totalChars * 0.07);
   }
 
-  // 4. Calcule les bornes audio par phrase, en tenant compte des <break time="0.7s" />
-  //    insérés entre les lignes côté envoi à ElevenLabs. Du coup chaque caractère
-  //    a un target audio.currentTime précis et le typewriter ne devance plus la voix.
+  // 4. Calcule les bornes audio par phrase. ElevenLabs ajoute un silence de
+  //    démarrage (~0.4s) avant la 1re voix + un trailing (~0.3s) à la fin.
+  //    On les soustrait pour calibrer correctement le timing per-char et que
+  //    le typewriter ne devance pas la voix audible.
   const totalSpokenChars = Math.max(1, lines.reduce((s, l) => s + l.length, 0));
   const breakSec = 0.7;
+  const initialSilenceSec = 0.4;
+  const trailingSilenceSec = 0.3;
   const totalBreakSec = Math.max(0, (lines.length - 1) * breakSec);
-  const totalSpokenSec = Math.max(0.5, totalDur - totalBreakSec);
+  const totalSpokenSec = Math.max(0.5, totalDur - totalBreakSec - initialSilenceSec - trailingSilenceSec);
   const spokenPerChar = totalSpokenSec / totalSpokenChars;
 
-  let cursorTime = 0;
+  let cursorTime = initialSilenceSec; // démarre le typewriter après le silence initial
   for (let i = 0; i < lines.length && !_voSkipRequested; i++) {
     const line = lines[i];
     const phraseStart = cursorTime;
     const phraseDur = Math.max(0.3, line.length * spokenPerChar);
     cursorTime = phraseStart + phraseDur + breakSec;
 
-    // Attend que l'audio atteigne le début de la phrase
+    // Attend que l'audio atteigne le début de la phrase (sortie après audio.ended)
     if (audioStarted) {
       while (audioEl.currentTime < phraseStart - 0.03 && !audioEl.ended && !_voSkipRequested) {
         await new Promise(res => setTimeout(res, 40));
@@ -1517,7 +1520,7 @@ async function playVOOverlay(vo, opts) {
     }
     if (_voSkipRequested) break;
 
-    // Typewriter caractère par caractère, chaque char attend sa position audio
+    // Typewriter caractère par caractère, chaque char attend sa cible audio
     textEl.classList.remove('done');
     textEl.textContent = '';
     for (let j = 0; j < line.length; j++) {
@@ -1535,14 +1538,18 @@ async function playVOOverlay(vo, opts) {
   }
   textEl.classList.add('done');
 
-  // 5. Attend la fin TOTALE de l'audio avant de rendre la main (sinon le caller
-  //    enchaîne sur le prompt suivant alors que la VO est encore en train de parler).
+  // 5. Attend que l'audio finisse VRAIMENT avant de rendre la main au caller.
+  //    Polling sur audioEl.ended et audioEl.paused (qui devient true après ended)
+  //    avec safety 90s — bien au-delà de toute VO réaliste, mais évite de hang
+  //    indéfiniment si quelque chose casse côté streaming.
   if (audioStarted && !_voSkipRequested) {
-    await new Promise(res => {
-      if (audioEl.ended) return res();
-      audioEl.addEventListener('ended', res, { once: true });
-      setTimeout(res, Math.max(2000, (totalDur + 3) * 1000));
-    });
+    const startWait = Date.now();
+    while (!_voSkipRequested && !audioEl.ended && !audioEl.paused) {
+      if (Date.now() - startWait > 90000) break;
+      await new Promise(res => setTimeout(res, 150));
+    }
+    // Petit buffer pour le décodage de la queue audio (trailing silence)
+    if (!_voSkipRequested) await new Promise(res => setTimeout(res, 200));
   } else if (!_voSkipRequested) {
     await new Promise(res => setTimeout(res, 500));
   }
@@ -1638,87 +1645,56 @@ function _restoreIntroBackdrop(state) {
   startIdleLoop();
 }
 
-// Précharge l'entry video DIRECTEMENT sur le layer inactif (pas sur un <video>
-// hidden) — comme ça quand l'user dit "Oui", on a juste à activer la classe
-// .active pour faire le crossfade opacity, et la vidéo est déjà chargée + prête
-// à jouer. Plus fiable que la stratégie cache HTTP qui ne marchait pas toujours.
-async function _preloadEntryOnInactiveLayer(videoUrl) {
-  if (!videoUrl) return null;
-  const layerA = document.getElementById('video-a');
-  const layerB = document.getElementById('video-b');
-  if (!layerA || !layerB) return null;
-  const inactive = layerA.classList.contains('active') ? layerB : layerA;
-  inactive.loop = true;
-  inactive.muted = true;
-  inactive.preload = 'auto';
-  inactive.src = videoUrl;
-  try { inactive.load(); } catch (e) {}
-  return inactive;
-}
-
-// Active le layer préchargé en crossfade (opacity transition .35s définie en CSS).
-async function _activatePreloadedEntry(preloadedLayer) {
-  if (!preloadedLayer) return null;
-  stopIdleLoop();
-  try { preloadedLayer.currentTime = 0; await preloadedLayer.play(); } catch (e) { /* autoplay block */ }
-  const layerA = document.getElementById('video-a');
-  const layerB = document.getElementById('video-b');
-  const oldActive = preloadedLayer === layerA ? layerB : layerA;
-  preloadedLayer.classList.add('active');
-  oldActive.classList.remove('active');
-  // Pause l'ancien layer après la fin du crossfade (350ms) pour libérer les ressources
-  setTimeout(() => { try { oldActive.pause(); } catch (e) {} }, 400);
-  return { layer: preloadedLayer };
-}
-
 async function playIntroSequence(introVO) {
   const introBgUrl = demo && demo.introVideo && demo.introVideo.videoUrl;
+  console.log('[playIntroSequence] introBgUrl =', introBgUrl);
 
-  // 1. CRITIQUE : stoppe l'idle loop AVANT de précharger l'entry video.
-  //    Sinon armIdleChain écrase le src du layer inactif ~400ms avant chaque
-  //    fin de cycle d'idle (pre-warm des idles enchaînés). Résultat : quand
-  //    l'user clique Oui, le src du layer a été remplacé par une URL d'idle
-  //    aléatoire au lieu de l'entry video. Bug reporté 3× par Tony.
-  //    On boucle l'idle en cours pour que Sophie continue d'animer.
+  // 1. Suppress l'idle loop pendant TOUT le flow intro. Empêche toute
+  //    réactivation de scheduleNextIdle (ex. via la .then() différée de
+  //    loadDemo) qui modifierait `activeLayer` ou les srcs des layers.
+  idleSuppressed = true;
   stopIdleLoop();
+
+  // 2. Warm le cache HTTP du browser avec un fetch en parallèle (best-effort,
+  //    no-cors). Quand swapToVideo sera appelé sur la même URL plus tard,
+  //    le browser réutilisera les bytes en cache → load instantané.
   if (introBgUrl) {
-    const layerA = document.getElementById('video-a');
-    const layerB = document.getElementById('video-b');
-    const currentActive = layerA.classList.contains('active') ? layerA : layerB;
-    currentActive.loop = true;
-    try { if (currentActive.paused) currentActive.play().catch(() => {}); } catch (e) {}
+    try { fetch(introBgUrl, { mode: 'no-cors' }).catch(() => {}); } catch (e) {}
   }
 
-  // 2. Précharge l'entry video sur le layer INACTIF (opacity 0, invisible).
-  const preloadedLayer = await _preloadEntryOnInactiveLayer(introBgUrl);
-
-  // 3. Joue la VO d'intro avec overlay typewriter qui reste ouvert pour
-  //    enchaîner avec le ready prompt.
+  // 3. Joue la VO d'intro avec la bulle qui reste ouverte pour enchaîner.
   await playVOOverlay(introVO, { keepOverlayOpen: true });
 
   // 4. "Êtes-vous prêt(e) ?" + boutons Oui/Non
   const userReady = await showReadyPrompt();
 
   if (!userReady) {
-    if (preloadedLayer) {
-      try { preloadedLayer.removeAttribute('src'); preloadedLayer.load(); } catch (e) {}
-    }
-    // Réactive l'idle loop normal avant de partir
+    idleSuppressed = false;
     startIdleLoop();
     showAdvisorGoodbye();
     return;
   }
 
-  // 5. Active le layer préchargé en crossfade (entry video déjà chargée).
-  let backdropState = null;
-  if (preloadedLayer) backdropState = await _activatePreloadedEntry(preloadedLayer);
+  // 5. Active la vidéo entry via swapToVideo — le système battle-tested
+  //    du codebase qui gère préchargement (canplay/loadeddata), 1ère frame
+  //    rendue (requestVideoFrameCallback), crossfade opacity, ET sync
+  //    `activeLayer` global (sinon le prochain swap est cassé).
+  if (introBgUrl) {
+    console.log('[playIntroSequence] swap to entry video');
+    try {
+      await swapToVideo(introBgUrl, { loop: true, instant: false });
+    } catch (e) {
+      console.warn('[playIntroSequence] swapToVideo entry failed:', e);
+    }
+  }
 
   // 6. VO contexte du 1er step par-dessus l'entry video
   const firstStep = demo && demo.steps && demo.steps[0];
   if (firstStep) await playStepContextVO(firstStep);
 
-  // 7. Retour à l'idle Sophie + choix
-  if (backdropState) _restoreIntroBackdrop(backdropState);
+  // 7. Restaure l'idle loop normal (il fait swap entry→idle automatiquement)
+  idleSuppressed = false;
+  startIdleLoop();
   showChoicesForCurrentStep();
 }
 
@@ -2123,6 +2099,11 @@ let idleVideosReady = false;
 let activeLayer = 'a'; // 'a' ou 'b' — quel <video> est visible
 let idleActive = false;
 let idleEndedHandler = null;
+// Bloquant pour empêcher startIdleLoop de tourner pendant des phases
+// délicates (ex. intro VO + entry video preload). Sinon des callbacks
+// différés (preloadIdleVideos().then(startIdleLoop), step finish, etc.)
+// peuvent overrider les srcs des layers et casser le swap entry video.
+let idleSuppressed = false;
 // Tracke si la dernière vidéo jouée était une idle (pour décider entre cut
 // sec — idle→idle — ou crossfade — speak→idle / boot→idle).
 let idleLastWasIdle = false;
@@ -2247,8 +2228,9 @@ async function swapToVideo(url, { loop = false, instant = false } = {}) {
 }
 
 async function startIdleLoop() {
-  if (idleActive) return;
+  if (idleActive || idleSuppressed) return;
   if (!idleVideosReady) await preloadIdleVideos();
+  if (idleSuppressed) return; // double-check après l'await preloadIdleVideos (qui peut être long)
   idleActive = true;
   scheduleNextIdle();
 }
@@ -2268,7 +2250,7 @@ function stopIdleLoop() {
 }
 
 async function scheduleNextIdle() {
-  if (!idleActive) return;
+  if (!idleActive || idleSuppressed) return;
   const pick = pickIdleVideo();
   // 1ère idle (post-speak ou au boot) : crossfade depuis l'écran/le speak.
   // Idles suivantes : cut sec (chaîné via le pre-warm dans armIdleChain).
