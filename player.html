@@ -1877,7 +1877,12 @@ async function maybePlayPersonalizedGreeting() {
   );
   if (!item || !item.audioUrl) return;
   const brand = (demo.introGreeting.brand || '').trim() || 'la maison';
-  const text = `Bonjour ${userFirstName}, bienvenue chez ${brand}. Vous incarnez aujourd'hui notre savoir-faire : un Advisor formé à l'attention et au détail.`;
+  // Le template peut avoir été personnalisé côté studio ; fallback sur la phrase A par défaut.
+  const tpl = (demo.introGreeting.template && demo.introGreeting.template.trim())
+    || "Bonjour {Prénom}, bienvenue chez {Marque}. Vous incarnez aujourd'hui notre savoir-faire : un Advisor formé à l'attention et au détail.";
+  const text = tpl
+    .replace(/\{Prénom\}/g, userFirstName)
+    .replace(/\{Marque\}/g, brand);
   await playVOOverlay({
     voice: 'narrator',
     scriptLines: [text],
