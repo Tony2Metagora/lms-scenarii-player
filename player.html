@@ -88,25 +88,25 @@
       width: 100%;
       max-width: 100%;
       max-height: 100%;
-      aspect-ratio: 16/9;
+      aspect-ratio: 16/9; /* fallback initial — adapté dynamiquement à la vidéo via JS pour éviter les bandes pillarbox */
       border-radius: 14px; overflow: hidden;
       box-shadow: 0 20px 60px rgba(120,90,40,0.25), 0 0 0 1px rgba(184,134,11,0.2);
       background: #1a1410;
-      transition: box-shadow .35s;
+      transition: box-shadow .35s, aspect-ratio .25s;
     }
     .video-frame.success {
       box-shadow: 0 20px 60px rgba(184,134,11,0.5), 0 0 0 4px #b8860b;
     }
     .video-frame video {
       width: 100%; height: 100%;
-      object-fit: cover; /* recadre pour remplir la frame sans bandes noires (avatar centré, edges légèrement croppés) */
+      object-fit: contain; /* préserve la vidéo entière (pas de zoom/crop) */
       background: #1a1410;
     }
     /* 2 layers superposés pour crossfade entre vidéos (évite le flash noir) */
     .video-layer {
       position: absolute; inset: 0;
       width: 100%; height: 100%;
-      object-fit: cover; /* idem : pas de pillarbox sur desktop large */
+      object-fit: contain;
       background: #1a1410;
       opacity: 0;
       transition: opacity .35s ease-in-out;
@@ -639,17 +639,7 @@
       position: relative;
       box-sizing: border-box;
     }
-    .intro-bubble::before {
-      content: '⚜';
-      position: absolute;
-      bottom: -34px; left: 50%;
-      transform: translateX(-50%);
-      font-size: 28px;
-      color: #b8860b;
-      line-height: 1;
-      text-shadow: 0 2px 6px rgba(120,90,40,0.25);
-      pointer-events: none;
-    }
+    /* Plus de pointer/icône sous la bulle (Tony : enlevé après essai du ⚜) */
     .intro-bubble-text {
       font-family: 'Playfair Display', serif;
       font-size: 22px;
@@ -1165,7 +1155,7 @@
 
     <div class="end-section" id="end-comment-section">
       <h2>💬 Votre commentaire</h2>
-      <p style="font-size: 13px; color: #6b5a3f; margin: 0 0 12px 0; line-height: 1.5;">Un retour à chaud sur l'expérience ? L'équipe pédagogique le lira pour améliorer la formation.</p>
+      <p style="font-size: 13px; color: #6b5a3f; margin: 0 0 12px 0; line-height: 1.5;">Un retour sur votre expérience ? Au plaisir de vous lire pour améliorer votre immersion dans notre univers.</p>
       <textarea id="end-comment-input" rows="4" placeholder="Ce qui vous a marqué, ce qui a manqué, une suggestion…" style="width:100%; padding: 10px 12px; border: 1px solid rgba(184,134,11,0.3); border-radius: 8px; font-family: inherit; font-size: 13px; line-height: 1.5; resize: vertical; box-sizing: border-box; background: rgba(255,255,255,0.85);"></textarea>
       <div style="display:flex; gap:10px; align-items:center; margin-top: 10px;">
         <button id="end-comment-submit" type="button" style="padding: 10px 22px; border-radius: 999px; border:0; background: linear-gradient(135deg, #b8860b, #d4a017); color:white; font-weight:700; font-family:inherit; font-size:13px; cursor:pointer;">Envoyer mon commentaire</button>
@@ -1408,15 +1398,29 @@ async function _ensureVOAudio(vo) {
   return null;
 }
 
+// Nettoie le texte avant affichage typewriter : retire les balises SSML
+// <break time="X" /> et les ellipses (…, ...). Ces marqueurs servent uniquement
+// à donner des pauses à ElevenLabs pour la VO, ils ne doivent pas s'afficher.
+function _cleanForDisplay(text) {
+  return String(text || '')
+    .replace(/<break\b[^>]*\/?>/gi, '')   // <break time="X" /> et variantes
+    .replace(/<\/break\s*>/gi, '')         // </break> au cas où
+    .replace(/…+/g, '')                    // ellipses unicode
+    .replace(/\.{3,}/g, '')                // 3+ points
+    .replace(/\s{2,}/g, ' ')               // double espaces
+    .trim();
+}
+
 function _typewriter(el, text, charSpeedMs) {
+  const display = _cleanForDisplay(text);
   return new Promise(resolve => {
     el.classList.remove('done');
     el.textContent = '';
     let i = 0;
     const tick = () => {
-      if (_voSkipRequested) { el.textContent = text; resolve(); return; }
-      if (i >= text.length) { resolve(); return; }
-      el.textContent += text[i++];
+      if (_voSkipRequested) { el.textContent = display; resolve(); return; }
+      if (i >= display.length) { resolve(); return; }
+      el.textContent += display[i++];
       setTimeout(tick, charSpeedMs);
     };
     tick();
@@ -1606,60 +1610,72 @@ function _restoreIntroBackdrop(state) {
   startIdleLoop();
 }
 
-// Précharge la vidéo entry client en arrière-plan (browser cache HTTP) pendant
-// la VO. Au moment où l'user dit "Oui", _setIntroBackdrop reuse les bytes cachés
-// donc le swap est instantané. Retourne l'élément à supprimer après usage.
-function _preloadIntroVideoSilent(videoUrl) {
+// Précharge l'entry video DIRECTEMENT sur le layer inactif (pas sur un <video>
+// hidden) — comme ça quand l'user dit "Oui", on a juste à activer la classe
+// .active pour faire le crossfade opacity, et la vidéo est déjà chargée + prête
+// à jouer. Plus fiable que la stratégie cache HTTP qui ne marchait pas toujours.
+async function _preloadEntryOnInactiveLayer(videoUrl) {
   if (!videoUrl) return null;
-  const v = document.createElement('video');
-  v.preload = 'auto';
-  v.muted = true;
-  v.src = videoUrl;
-  v.style.cssText = 'position:absolute; left:-9999px; width:1px; height:1px; visibility:hidden; pointer-events:none;';
-  document.body.appendChild(v);
-  try { v.load(); } catch (e) {}
-  return v;
+  const layerA = document.getElementById('video-a');
+  const layerB = document.getElementById('video-b');
+  if (!layerA || !layerB) return null;
+  const inactive = layerA.classList.contains('active') ? layerB : layerA;
+  inactive.loop = true;
+  inactive.muted = true;
+  inactive.preload = 'auto';
+  inactive.src = videoUrl;
+  try { inactive.load(); } catch (e) {}
+  return inactive;
+}
+
+// Active le layer préchargé en crossfade (opacity transition .35s définie en CSS).
+async function _activatePreloadedEntry(preloadedLayer) {
+  if (!preloadedLayer) return null;
+  stopIdleLoop();
+  try { preloadedLayer.currentTime = 0; await preloadedLayer.play(); } catch (e) { /* autoplay block */ }
+  const layerA = document.getElementById('video-a');
+  const layerB = document.getElementById('video-b');
+  const oldActive = preloadedLayer === layerA ? layerB : layerA;
+  preloadedLayer.classList.add('active');
+  oldActive.classList.remove('active');
+  // Pause l'ancien layer après la fin du crossfade (350ms) pour libérer les ressources
+  setTimeout(() => { try { oldActive.pause(); } catch (e) {} }, 400);
+  return { layer: preloadedLayer };
 }
 
 async function playIntroSequence(introVO) {
   const introBgUrl = demo && demo.introVideo && demo.introVideo.videoUrl;
 
-  // 1. Lance le préchargement de l'entry video en arrière-plan (sans la jouer
-  //    ni l'afficher). Le but : avoir les bytes en cache HTTP au moment où
-  //    l'user clique "Oui je suis prêt(e)" → swap instantané.
-  const preloadEl = _preloadIntroVideoSilent(introBgUrl);
+  // 1. Précharge l'entry video sur le layer INACTIF (donc invisible, opacity 0).
+  //    Le browser commence le téléchargement+décodage pendant que la VO joue.
+  const preloadedLayer = await _preloadEntryOnInactiveLayer(introBgUrl);
 
-  // 2. Joue la VO d'intro sur le fond idle Sophie flouté (PAS de swap d'entry
-  //    video pour le moment — l'user n'a pas encore consenti). On garde l'overlay
-  //    ouvert pour enchaîner avec showReadyPrompt sans flicker.
+  // 2. Joue la VO d'intro sur le fond idle Sophie (pas de swap pour le moment).
+  //    keepOverlayOpen pour enchaîner avec le ready prompt sans flicker.
   await playVOOverlay(introVO, { keepOverlayOpen: true });
 
   // 3. "Êtes-vous prêt(e) à rencontrer la cliente ?" + boutons Oui/Non
   const userReady = await showReadyPrompt();
 
-  // Cleanup du préchargement (on ne va plus en avoir besoin)
-  if (preloadEl) {
-    try { preloadEl.pause(); } catch (e) {}
-    preloadEl.remove();
-  }
-
   if (!userReady) {
-    // L'user a cliqué "Pas maintenant" → goodbye legacy (placeholder "À bientôt")
+    // Annulation : on libère le layer préchargé en le repassant inactif
+    if (preloadedLayer) {
+      try { preloadedLayer.removeAttribute('src'); preloadedLayer.load(); } catch (e) {}
+    }
     showAdvisorGoodbye();
     return;
   }
 
-  // 4. Maintenant qu'on a le consentement, on swap au backdrop entry video.
-  //    Le browser réutilise les bytes mis en cache pendant la VO → quasi-instant.
+  // 4. Active le layer préchargé en crossfade : l'entry video (déjà chargée)
+  //    apparaît en fade-in, l'idle Sophie en fade-out. 350ms de transition.
   let backdropState = null;
-  if (introBgUrl) backdropState = await _setIntroBackdrop(introBgUrl);
+  if (preloadedLayer) backdropState = await _activatePreloadedEntry(preloadedLayer);
 
-  // 5. Joue la VO contexte du 1er step par-dessus la vidéo entry
-  //    (narration "Sophie entre dans la boutique du 17 rue de Sèvres…")
+  // 5. VO contexte du 1er step par-dessus l'entry video
   const firstStep = demo && demo.steps && demo.steps[0];
   if (firstStep) await playStepContextVO(firstStep);
 
-  // 6. Restaure l'idle Sophie + montre les choix
+  // 6. Retour à l'idle Sophie + choix
   if (backdropState) _restoreIntroBackdrop(backdropState);
   showChoicesForCurrentStep();
 }
@@ -2392,6 +2408,23 @@ async function playStep(url, opts) {
     setTimeout(finish, 90000);
   });
 }
+
+// Adapte dynamiquement l'aspect-ratio de la frame à la vidéo en cours pour
+// éviter à la fois les bandes pillarbox (object-fit contain) et le over-zoom
+// (object-fit cover). Le ratio se met à jour à chaque loadedmetadata.
+(function bindFrameAspectAdapter() {
+  const frame = document.getElementById('video-frame');
+  if (!frame) return;
+  ['video-a', 'video-b'].forEach(id => {
+    const v = document.getElementById(id);
+    if (!v) return;
+    v.addEventListener('loadedmetadata', () => {
+      if (v.videoWidth && v.videoHeight) {
+        frame.style.aspectRatio = `${v.videoWidth} / ${v.videoHeight}`;
+      }
+    });
+  });
+})();
 
 // Bouton mute persistent (n'est plus recréé à chaque vidéo) — bind direct
 // car le script <script> est en bas du body, donc le DOM existe déjà.
