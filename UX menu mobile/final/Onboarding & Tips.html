@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>Onboarding & Tips — Hermès Parfum</title>
+<meta name="viewport" content="width=1400">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400;1,500&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  html, body { margin:0; padding:0; background:#E8E5DF; font-family: 'IBM Plex Sans', sans-serif; }
+  @keyframes vobar { 0%,100%{transform:scaleY(1);} 50%{transform:scaleY(2.2);} }
+</style>
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="onboarding.jsx"></script>
+<script type="text/babel" src="onboarding-mobile.jsx"></script>
+<script type="text/babel" src="mobile-side-panel.jsx"></script>
+<script type="text/babel" src="mobile-single-answer.jsx"></script>
+<script type="text/babel" src="mobile-single-answer-bottom-variants.jsx"></script>
+<script type="text/babel" src="mobile-tap-validate-variants.jsx"></script>
+<script type="text/babel" src="mobile-tap-indicator-variants.jsx"></script>
+<script type="text/babel" src="mobile-left-icons-variants.jsx"></script>
+<script type="text/babel" src="results-bilan.jsx"></script>
+<script type="text/babel" src="chrome-bar-fix.jsx"></script>
+
+<script type="text/babel" data-presets="env,react">
+const { DesignCanvas, DCSection, DCArtboard } = window;
+const SRC = "assets/discovery-3.mp4";
+
+function App() {
+  return (
+    <DesignCanvas title="Onboarding & Tips — flow complet" subtitle="Desktop 1440×900 + Mobile paysage 844×390">
+
+      {/* ───── DESKTOP ───── */}
+      <DCSection id="desktop" title="Desktop · 1440 × 900" subtitle="Flow validé : Bienvenue → Voix off (lecture suivie) → Prêt·e → Tips C4 v3">
+        <DCArtboard id="d-1" label="① Bienvenue / prénom" width={1440} height={900}>
+          <window.OnbA_Welcome />
+        </DCArtboard>
+        <DCArtboard id="d-2" label="② Voix off — fullscreen, lecture suivie" width={1440} height={900}>
+          <window.OnbC_VoiceOffFull />
+        </DCArtboard>
+        <DCArtboard id="d-3" label="③ Prêt·e à rencontrer" width={1440} height={900}>
+          <window.OnbA_Ready src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="d-4" label="④ Popup conseil — Tips C4 v3" width={1440} height={900}>
+          <window.TipsC_v3 src={SRC} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ───── MOBILE PAYSAGE ───── */}
+      <DCSection id="mobile" title="Mobile · 844 × 390 (paysage)" subtitle="Mêmes écrans, adaptés au format paysage iPhone-like">
+        <DCArtboard id="m-1" label="① Bienvenue / prénom" width={844} height={390}>
+          <window.MOnbA_Welcome />
+        </DCArtboard>
+        <DCArtboard id="m-2" label="② Voix off — fullscreen, lecture suivie" width={844} height={390}>
+          <window.MOnbC_VoiceOffFull />
+        </DCArtboard>
+        <DCArtboard id="m-3" label="③ Prêt·e à rencontrer" width={844} height={390}>
+          <window.MOnbA_Ready src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="m-4" label="④ Popup conseil — Tips C4 v3" width={844} height={390}>
+          <window.MTipsC_v3 src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="m-5" label="⑤ Mobile paysage · Side panel pleine hauteur (style Hermès)" width={844} height={390}>
+          <window.MobileSidePanel src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="m-5-demo" label="⑥ Mobile paysage · Side panel — démo auto-réponse" width={844} height={390}>
+          <window.MobileSidePanel src={SRC} demo />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ───── MOBILE · 1 RÉPONSE À LA FOIS ───── */}
+      <DCSection id="single-answer" title="Mobile paysage · 1 réponse à la fois" subtitle="Le panel droit n'affiche qu'une réponse, navigation entre les 4 via mini-menu. 3 patterns à comparer.">
+        <DCArtboard id="sa-dots" label="A · Dots discrets + flèches ‹ ›" width={844} height={390}>
+          <window.MobileSingleAnswer_Dots src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="sa-tabs" label="B · Onglets ABCD en haut de card" width={844} height={390}>
+          <window.MobileSingleAnswer_Tabs src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="sa-swipe" label="C · Flèches latérales + barre de progression" width={844} height={390}>
+          <window.MobileSingleAnswer_Swipe src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="sa-segmented" label="D · Segmenté numéroté 01·02·03·04" width={844} height={390}>
+          <window.MobileSingleAnswer_Segmented src={SRC} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ───── 3 variantes du menu BAS de l'Option A ───── */}
+      <DCSection id="sa-bottom-variants" title="Mobile paysage · 3 variantes du menu BAS (Option A)" subtitle="Card cliquable = validation · eyebrow 'VOTRE TOUR, QUE RÉPONDEZ-VOUS ?' · on varie uniquement le menu de nav.">
+        <DCArtboard id="sab-1" label="A1 · Dots minimaliste + flèches arrondies" width={844} height={390}>
+          <window.MobileSA_A1Dots src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="sab-2" label="A2 · Mini-thumbs (preview du texte des 4 réponses)" width={844} height={390}>
+          <window.MobileSA_A2Thumbs src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="sab-3" label="A3 · Barre 4 segments + Préc/Suiv + 01/04" width={844} height={390}>
+          <window.MobileSA_A3Bar src={SRC} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ───── 3 déclinaisons du "tap pour valider" sur base A3 ───── */}
+      <DCSection id="tap-variants" title="Mobile paysage · 3 styles de 'tap pour valider' (base A3)" subtitle="Même nav A3 (barre 4 segments). On varie uniquement la signalétique de validation.">
+        <DCArtboard id="tap-1" label="V1 · Barre noire pleine largeur en bas de la card" width={844} height={390}>
+          <window.MobileTAP_V1Button src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="tap-2" label="V2 · Halo terracotta pulsé + ripple au tap" width={844} height={390}>
+          <window.MobileTAP_V2Halo src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="tap-3" label="V3 · Poignée verticale droite + chevron shimmer" width={844} height={390}>
+          <window.MobileTAP_V3Slide src={SRC} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ───── 3 versions de l'indicateur séparé (sous l'eyebrow) ───── */}
+      <DCSection id="tap-indicator" title="Mobile paysage · Indicateur 'tap pour valider' SOUS l'eyebrow" subtitle="L'indicateur est entre « ◆ Votre tour » et la card. La card reste sobre.">
+        <DCArtboard id="tapi-1" label="V1 · Pill discret terracotta + chevron ↓ animé" width={844} height={390}>
+          <window.MobileTAPI_V1Pill src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="tapi-2" label="V2 · Bandeau noir pleine largeur + shimmer terracotta" width={844} height={390}>
+          <window.MobileTAPI_V2Banner src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="tapi-3" label="V3 · Helper minimal italique + 3 dots ondulés" width={844} height={390}>
+          <window.MobileTAPI_V3Quiet src={SRC} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ───── 3 styles d'icônes audio à GAUCHE — V2 banner ───── */}
+      <DCSection id="left-icons" title="Mobile paysage · 3 styles d'icônes audio à gauche" subtitle="Base V2 (bandeau noir + shimmer). Sans ◆ devant 'Votre tour'. Wording : « Cliquez sur la réponse pour valider »">
+        <DCArtboard id="li-a" label="A · Disques sombres remplis + icônes terracotta (proche WhatsApp)" width={844} height={390}>
+          <window.MobileTLI_VarA src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="li-b" label="B · Anneaux translucides — replay V1 (flèche circulaire)" width={844} height={390}>
+          <window.MobileTLI_VarB src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="li-b2" label="B · Anneaux translucides — replay V2 (double triangle rewind)" width={844} height={390}>
+          <window.MobileTLI_VarB2 src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="li-b3" label="B · Anneaux translucides — replay V3 (circulaire + ‘10’ secondes)" width={844} height={390}>
+          <window.MobileTLI_VarB3 src={SRC} />
+        </DCArtboard>
+        <DCArtboard id="li-c" label="C · Pills horizontales avec label texte (Quiet Material)" width={844} height={390}>
+          <window.MobileTLI_VarC src={SRC} />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ───── BILAN FINAL ───── */}
+      <DCSection id="bilan" title="Bilan final · fin de démo" subtitle="Écran de résultats long (scrollable). Desktop, mobile paysage et écran rotation pour mobile portrait.">
+        <DCArtboard id="b-1" label="Desktop · 1440 × 900 (scrollable)" width={1440} height={900}>
+          <window.ResultsDesktop />
+        </DCArtboard>
+        <DCArtboard id="b-2" label="Mobile paysage · 844 × 390 (scrollable)" width={844} height={390}>
+          <window.ResultsMobile />
+        </DCArtboard>
+        <DCArtboard id="b-3" label="Mobile portrait · rotation prompt" width={390} height={844}>
+          <window.ResultsRotation />
+        </DCArtboard>
+      </DCSection>
+
+      {/* ───── FIX BARRE CHROME ───── */}
+      <DCSection id="chrome-fix" title="Mobile · gérer la barre Chrome (problème viewport)" subtitle="3 approches pour éviter que la barre Chrome tronque le visage de la cliente.">
+        <DCArtboard id="cf-a" label="A · Fullscreen API — CTA + bandeau" width={844} height={390}>
+          <window.ChromeA_Fullscreen src="assets/discovery-3.mp4" />
+        </DCArtboard>
+        <DCArtboard id="cf-b" label="B · Layout adapté — vidéo cadrée + chips colonne gauche" width={844} height={390}>
+          <window.ChromeB_Adapted src="assets/discovery-3.mp4" />
+        </DCArtboard>
+        <DCArtboard id="cf-c" label="C · PWA install — avant/après" width={844} height={830}>
+          <window.ChromeC_PWA src="assets/discovery-3.mp4" />
+        </DCArtboard>
+      </DCSection>
+
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>

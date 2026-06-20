@@ -4,6 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Métagora — Démo Hermès Sophie</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
@@ -496,24 +499,41 @@
     }
     .feedback-card button.retry:hover { background: #0284c7; }
 
-    /* === END SCREEN — page complète scrollable === */
+    /* === END SCREEN — page complète scrollable (Bilan V2 — Quiet Material) === */
     .end-screen {
       position: fixed; inset: 0;
-      background: radial-gradient(ellipse at top, #faf3e6 0%, #f0e4d0 100%);
+      background: #F2F0EC;
       z-index: 100;
       opacity: 0; pointer-events: none;
       overflow-y: auto;
       transition: opacity .4s;
+      font-family: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      color: #1A1A1A;
     }
     .end-screen.show { opacity: 1; pointer-events: auto; }
     .end-content {
-      max-width: 760px; margin: 0 auto;
-      padding: 50px 24px 40px;
-      color: #3a2f20;
+      max-width: 1180px; margin: 0 auto;
+      padding: 0 40px 60px;
     }
-    .end-hero { text-align: center; margin-bottom: 28px; }
-    .end-hero h1 { font-size: 38px; color: #b8860b; letter-spacing: .04em; margin-bottom: 8px; font-weight: 700; }
-    .end-hero p { color: #6a5840; font-size: 14px; line-height: 1.6; max-width: 480px; margin: 0 auto; }
+    .end-hero { text-align: center; padding: 40px 0 28px; }
+    .end-hero .hero-eyebrow {
+      display: inline-flex; align-items: center; gap: 10px;
+      font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+      color: #B7553B; letter-spacing: 0.22em;
+      margin-bottom: 14px;
+    }
+    .end-hero .hero-eyebrow .hero-line { width: 28px; height: 1px; background: #B7553B; }
+    .end-hero h1 {
+      margin: 0 0 8px;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-weight: 600; font-size: 38px; line-height: 1.1;
+      letter-spacing: -0.015em; color: #1A1A1A;
+    }
+    .end-hero p {
+      margin: 0 auto;
+      font-size: 14px; line-height: 1.55;
+      color: #5C5A55; max-width: 520px;
+    }
 
     /* === Welcome overlay (demande du prénom au démarrage) === */
     .welcome-overlay {
@@ -771,95 +791,202 @@
       .tut-dismiss { font-size: 13px; padding: 10px 24px; }
     }
 
-    .end-section {
-      background: rgba(255,255,255,0.72);
-      border: 1px solid rgba(120,90,40,0.18);
-      border-radius: 14px;
-      padding: 20px 24px;
-      margin-bottom: 16px;
-      box-shadow: 0 4px 16px rgba(120,90,40,0.06);
+    /* Stats — 4 cartes hairline */
+    .stat-row {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+      margin-bottom: 18px;
     }
-    .end-section h2 {
-      font-size: 11px; text-transform: uppercase; letter-spacing: .15em;
-      color: #b8860b; font-weight: 700; margin-bottom: 14px;
+    .end-screen .stat {
+      background: #FAF8F4; padding: 20px 24px;
+      border: 1px solid #DCD7CC;
     }
-    .stat-row { display: flex; gap: 24px; justify-content: center; }
-    .stat-row .stat { text-align: center; }
-    .stat-val { font-size: 28px; font-weight: 700; color: #3a2f20; line-height: 1; }
-    .stat-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: .1em; color: #8a7a60; margin-top: 4px; }
-    /* Badge produit (carte mise en avant) */
-    .product-badge {
-      background: linear-gradient(135deg, rgba(184,134,11,0.14), rgba(212,160,23,0.08));
-      border-color: rgba(184,134,11,0.4);
-      text-align: center;
+    .end-screen .stat-lbl {
+      font-family: 'IBM Plex Mono', monospace; font-size: 9px;
+      color: #9E9B94; letter-spacing: 0.18em; margin-bottom: 8px;
+      text-transform: uppercase;
     }
-    .product-badge .icon-large { font-size: 56px; margin-bottom: 4px; }
-    .product-badge .name { font-size: 22px; font-weight: 700; color: #b8860b; margin-bottom: 4px; }
-    .product-badge .label { font-size: 12px; color: #8a7a60; margin-bottom: 6px; letter-spacing: .04em; text-transform: uppercase; }
-    .product-badge .info { font-size: 12px; color: #6a5840; }
-    .product-badge.no-badge .name { color: #8a7a60; }
-    /* Liste mastery par phase */
-    .phase-list { display: flex; flex-direction: column; gap: 8px; }
-    .phase-row {
-      display: flex; align-items: center; gap: 12px;
-      padding: 10px 14px;
-      background: rgba(250,243,230,0.55);
-      border-radius: 8px;
-      border-left: 3px solid #b8860b;
-      flex-wrap: wrap;
+    .end-screen .stat-val {
+      font-size: 32px; font-weight: 600; line-height: 1;
+      letter-spacing: -0.02em; color: #1A1A1A;
     }
-    .phase-row.no-badge { border-left-color: #d4c5a8; opacity: 0.65; }
-    .phase-row .phase-name { font-weight: 600; font-size: 13px; flex: 0 0 130px; color: #3a2f20; }
-    .phase-row .phase-stats { font-size: 11px; color: #6a5840; flex: 1; }
-    .phase-row .phase-badge { font-size: 13px; font-weight: 600; color: #b8860b; white-space: nowrap; }
-    .phase-row .phase-badge .icon { margin-right: 6px; }
-    /* Tips */
+
+    /* Eyebrow + titre de carte (réutilisé dans phases / tips / commentaire) */
+    .end-screen .card-eyebrow {
+      font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+      color: #B7553B; letter-spacing: 0.22em; margin-bottom: 4px;
+      text-transform: uppercase;
+    }
+    .end-screen .card-title {
+      margin: 0 0 18px; font-size: 18px; font-weight: 500;
+      letter-spacing: -0.01em; color: #1A1A1A;
+    }
+
+    /* Grid 2 colonnes — Featured badge + Phases */
+    .badge-phases-grid {
+      display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    /* Featured badge (terracotta) */
+    .featured-badge {
+      background: #B7553B; color: #fff;
+      padding: 32px;
+      display: flex; flex-direction: column; justify-content: space-between;
+      min-height: 280px;
+    }
+    .featured-badge.no-badge {
+      background: #FAF8F4; color: #5C5A55;
+      border: 1px solid #DCD7CC;
+    }
+    .featured-badge .badge-eyebrow {
+      font-family: 'IBM Plex Mono', monospace; font-size: 10px;
+      letter-spacing: 0.22em; opacity: 0.85; margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+    .featured-badge .badge-name {
+      font-size: 30px; font-weight: 500; line-height: 1.1;
+      letter-spacing: -0.015em; margin-bottom: 12px;
+    }
+    .featured-badge .badge-info {
+      font-size: 13px; line-height: 1.55; opacity: 0.92;
+    }
+    .featured-badge .badge-bottom {
+      display: flex; justify-content: space-between; align-items: flex-end;
+      margin-top: 24px;
+    }
+
+    /* Phases card */
+    .phases-card {
+      background: #FAF8F4; padding: 24px 28px;
+      border: 1px solid #DCD7CC;
+    }
+    .phase-list { display: flex; flex-direction: column; gap: 14px; }
+    .phase-row { display: flex; flex-direction: column; gap: 6px; }
+    .phase-row .phase-head {
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .phase-row .phase-name { font-size: 15px; font-weight: 500; color: #1A1A1A; }
+    .phase-row .phase-bar { height: 4px; background: #E8E5DF; }
+    .phase-row .phase-bar-fill { height: 4px; background: #B7553B; }
+    .phase-row .phase-meta {
+      display: flex; justify-content: space-between; align-items: baseline;
+    }
+    .phase-row .phase-attempts {
+      font-size: 11px; color: #9E9B94;
+      font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.08em;
+    }
+    .phase-row .phase-badge-name {
+      font-size: 11px; color: #B7553B; font-weight: 500;
+    }
+    .phase-row.no-badge .phase-badge-name { color: #9E9B94; }
+    .phase-row.no-badge .phase-bar-fill { background: #9E9B94; }
+
+    /* Tips card */
+    .tips-card {
+      background: #FAF8F4; padding: 28px 32px;
+      border: 1px solid #DCD7CC; margin-bottom: 18px;
+    }
     .tips-list { display: flex; flex-direction: column; gap: 10px; }
     .tip-item {
-      display: flex; gap: 10px;
-      background: rgba(186,230,253,0.4);
-      border-left: 3px solid #0ea5e9;
-      padding: 12px 14px;
-      border-radius: 8px;
-      font-size: 13px;
-      color: #0c4a6e;
-      line-height: 1.55;
+      background: #fff; padding: 16px 22px;
+      border-left: 3px solid #B7553B;
+      display: flex; gap: 18px;
     }
-    .tip-item .icon { flex-shrink: 0; font-size: 16px; line-height: 1.4; }
-    .tip-item .body strong { color: #075985; }
-    .tip-item .body .source { font-size: 11px; color: #0284c7; font-style: italic; margin-top: 4px; }
-    /* Toggle missing badges */
+    .tip-item .num {
+      font-family: 'IBM Plex Mono', monospace; font-size: 13px;
+      color: #B7553B; font-weight: 600; min-width: 26px; flex-shrink: 0;
+    }
+    .tip-item .body { flex: 1; }
+    .tip-item .body .text {
+      font-size: 14px; line-height: 1.55; color: #1A1A1A;
+      margin: 0 0 6px; text-wrap: pretty;
+    }
+    .tip-item .body .source {
+      font-size: 11px; color: #9E9B94;
+      font-family: 'IBM Plex Mono', monospace; letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* Missing badges card (collapsible) */
+    .missing-card {
+      background: #FAF8F4; border: 1px dashed #9E9B94;
+      padding: 16px 24px; margin-bottom: 18px;
+    }
     .missing-toggle {
-      background: transparent; border: 1px dashed #b8860b; color: #b8860b;
-      padding: 11px 16px; border-radius: 8px;
-      font-family: inherit; font-size: 12px; font-weight: 600;
-      cursor: pointer; width: 100%;
-      transition: background .15s;
-      letter-spacing: .04em;
+      width: 100%; background: transparent; border: none;
+      cursor: pointer; padding: 6px 0;
+      font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+      color: #B7553B; letter-spacing: 0.22em;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      text-transform: uppercase;
     }
-    .missing-toggle:hover { background: rgba(184,134,11,0.08); }
-    .missing-list { display: none; flex-direction: column; gap: 6px; margin-top: 12px; }
+    .missing-toggle .caret {
+      display: inline-block; transition: transform 0.3s;
+    }
+    .missing-toggle.open .caret { transform: rotate(180deg); }
+    .missing-list { display: none; flex-direction: column; gap: 6px; margin-top: 14px; }
     .missing-list.show { display: flex; }
     .missing-item {
-      display: flex; align-items: center; gap: 10px;
-      padding: 8px 12px; background: rgba(120,90,40,0.05);
-      border-radius: 6px; font-size: 12px; color: #6a5840;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 18px; background: #fff;
+      gap: 12px;
     }
-    .missing-item .icon { opacity: 0.45; flex-shrink: 0; }
-    .missing-item .name { flex: 1; }
-    .missing-item .req { font-size: 10px; color: #8a7a60; font-style: italic; flex-shrink: 0; }
-    /* Boutons fin */
-    .end-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
-    .end-actions button {
-      padding: 13px 28px; border-radius: 10px; border: 0;
-      font-family: inherit; font-size: 14px; font-weight: 700;
-      cursor: pointer; letter-spacing: .04em;
+    .missing-item .left {
+      display: flex; align-items: center; gap: 14px;
+      min-width: 0;
     }
+    .missing-item .name { font-size: 14px; color: #1A1A1A; }
+    .missing-item .req {
+      font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+      color: #9E9B94; letter-spacing: 0.06em;
+      flex-shrink: 0;
+    }
+
+    /* Comment card */
+    .comment-card {
+      background: #FAF8F4; border: 1px solid #DCD7CC;
+      padding: 22px 26px; margin-bottom: 4px;
+    }
+    .comment-card .comment-intro {
+      margin: 0 0 14px; font-size: 13px; color: #5C5A55; line-height: 1.5;
+    }
+    #end-comment-input {
+      width: 100%; height: 96px; padding: 14px;
+      border: 1px solid #DCD7CC; background: #fff;
+      font-family: 'IBM Plex Sans', sans-serif; font-size: 13px;
+      color: #1A1A1A; box-sizing: border-box;
+      resize: vertical; margin-bottom: 12px; outline: none;
+      transition: border-color 0.15s;
+    }
+    #end-comment-input:focus { border-color: #B7553B; }
+    .comment-actions { display: flex; gap: 12px; align-items: center; }
+    #end-comment-submit {
+      background: #1A1A1A; color: #fff; border: none;
+      padding: 12px 22px; font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px; font-weight: 500; cursor: pointer;
+      display: inline-flex; align-items: center; gap: 10px;
+      transition: opacity 0.15s;
+    }
+    #end-comment-submit:hover { opacity: 0.85; }
+    #end-comment-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+    #end-comment-status { font-size: 11px; color: #5C5A55; }
+
+    /* Restart CTA — bouton ghost */
+    .end-actions { text-align: center; margin-top: 24px; }
     .end-actions .restart {
-      background: #b8860b; color: white;
-      box-shadow: 0 6px 16px rgba(184,134,11,0.3);
+      padding: 16px 44px; background: transparent;
+      border: 1px solid #1A1A1A; color: #1A1A1A;
+      font-family: 'IBM Plex Sans', sans-serif;
+      font-size: 13px; font-weight: 500; letter-spacing: 0.2em;
+      cursor: pointer;
+      display: inline-flex; align-items: center; gap: 12px;
+      transition: background 0.2s, color 0.2s;
+      text-transform: uppercase;
     }
-    .end-actions .restart:hover { background: #966c08; }
+    .end-actions .restart:hover { background: #1A1A1A; color: #fff; }
+
+    /* Stars (SVG) */
+    .stars-row { display: inline-flex; gap: 2px; align-items: center; }
 
     /* === Share modal === */
     .share-modal {
@@ -1026,13 +1153,26 @@
       .step-timeline-mobile { display: flex; margin-top: 4px; }
 
       /* Écran de fin mobile */
-      .end-content { padding: 30px 14px; }
-      .end-hero h1 { font-size: 30px; }
-      .end-section { padding: 16px 18px; }
-      .stat-row { flex-wrap: wrap; gap: 16px; }
-      .phase-row { flex-direction: column; align-items: flex-start; gap: 4px; }
-      .phase-row .phase-name { flex: none; }
-      .phase-row .phase-stats, .phase-row .phase-badge { font-size: 13px; }
+      .end-content { padding: 0 16px 40px; }
+      .end-hero { padding: 24px 0 20px; }
+      .end-hero h1 { font-size: 28px; }
+      .end-hero p { font-size: 13px; }
+      .stat-row { grid-template-columns: 1fr 1fr; gap: 4px; }
+      .end-screen .stat { padding: 14px 16px; }
+      .end-screen .stat-val { font-size: 24px; }
+      .badge-phases-grid { grid-template-columns: 1fr; gap: 8px; }
+      .featured-badge { padding: 22px 24px; min-height: auto; }
+      .featured-badge .badge-name { font-size: 22px; }
+      .featured-badge .badge-bottom { margin-top: 18px; }
+      .phases-card { padding: 20px 22px; }
+      .tips-card { padding: 22px 22px; }
+      .tip-item { padding: 14px 16px; gap: 12px; }
+      .tip-item .body .text { font-size: 13px; }
+      .missing-card { padding: 14px 18px; }
+      .missing-item { flex-direction: column; align-items: flex-start; gap: 8px; padding: 12px 14px; }
+      .missing-item .req { align-self: flex-start; }
+      .comment-card { padding: 18px 20px; }
+      .end-actions .restart { padding: 14px 32px; font-size: 12px; letter-spacing: 0.16em; }
     }
   </style>
 </head>
@@ -1120,51 +1260,54 @@
 <div class="end-screen" id="end-screen">
   <div class="end-content">
     <div class="end-hero">
-      <h1 id="end-hero-title">🎉 Bravo !</h1>
-      <p>Tu as accompli le parcours avec Sophie. Voici ton bilan détaillé et tes badges débloqués.</p>
+      <div class="hero-eyebrow">
+        <span class="hero-line"></span>DÉMO TERMINÉE<span class="hero-line"></span>
+      </div>
+      <h1 id="end-hero-title">Bravo.</h1>
+      <p>Vous avez accompli le parcours avec Sophie. Voici votre bilan.</p>
     </div>
 
-    <div class="end-section">
-      <h2>📊 Stats globales</h2>
-      <div class="stat-row">
-        <div class="stat"><div class="stat-val" id="end-attempts">0</div><div class="stat-lbl">Tentatives</div></div>
-        <div class="stat"><div class="stat-val" id="end-errors">0</div><div class="stat-lbl">Erreurs</div></div>
-        <div class="stat"><div class="stat-val" id="end-score">0</div><div class="stat-lbl">Score</div></div>
-        <div class="stat"><div class="stat-val" id="end-time">0s</div><div class="stat-lbl">Durée</div></div>
+    <div class="stat-row">
+      <div class="stat"><div class="stat-lbl">TENTATIVES</div><div class="stat-val" id="end-attempts">0</div></div>
+      <div class="stat"><div class="stat-lbl">ERREURS</div><div class="stat-val" id="end-errors">0</div></div>
+      <div class="stat"><div class="stat-lbl">SCORE</div><div class="stat-val" id="end-score">0</div></div>
+      <div class="stat"><div class="stat-lbl">DURÉE</div><div class="stat-val" id="end-time">0s</div></div>
+    </div>
+
+    <div class="badge-phases-grid">
+      <div class="featured-badge" id="end-product-badge">
+        <!-- rempli par renderProductBadge() -->
+      </div>
+      <div class="phases-card">
+        <div class="card-eyebrow">MAÎTRISE</div>
+        <h2 class="card-title">Par phase</h2>
+        <div class="phase-list" id="end-phase-list"></div>
       </div>
     </div>
 
-    <div class="end-section product-badge" id="end-product-badge">
-      <!-- rempli par renderEndScreen() -->
-    </div>
-
-    <div class="end-section">
-      <h2>🏅 Maîtrise par phase</h2>
-      <div class="phase-list" id="end-phase-list"></div>
-    </div>
-
-    <div class="end-section">
-      <h2>💡 3 tips de vente à retenir</h2>
+    <div class="tips-card">
+      <div class="card-eyebrow">À RETENIR</div>
+      <h2 class="card-title">3 tips de vente</h2>
       <div class="tips-list" id="end-tips-list"></div>
     </div>
 
-    <div class="end-section">
-      <button class="missing-toggle" id="missing-toggle">Voir les badges manquants ▾</button>
+    <div class="missing-card">
+      <button class="missing-toggle" id="missing-toggle" type="button">VOIR LES BADGES MANQUANTS<span class="caret">▾</span></button>
       <div class="missing-list" id="missing-list"></div>
     </div>
 
-    <div class="end-section" id="end-comment-section">
-      <h2>💬 Votre commentaire</h2>
-      <p style="font-size: 13px; color: #6b5a3f; margin: 0 0 12px 0; line-height: 1.5;">Un retour sur votre expérience ? Au plaisir de vous lire pour améliorer votre immersion dans notre univers.</p>
-      <textarea id="end-comment-input" rows="4" placeholder="Ce qui vous a marqué, ce qui a manqué, une suggestion…" style="width:100%; padding: 10px 12px; border: 1px solid rgba(184,134,11,0.3); border-radius: 8px; font-family: inherit; font-size: 13px; line-height: 1.5; resize: vertical; box-sizing: border-box; background: rgba(255,255,255,0.85);"></textarea>
-      <div style="display:flex; gap:10px; align-items:center; margin-top: 10px;">
-        <button id="end-comment-submit" type="button" style="padding: 10px 22px; border-radius: 999px; border:0; background: linear-gradient(135deg, #b8860b, #d4a017); color:white; font-weight:700; font-family:inherit; font-size:13px; cursor:pointer;">Envoyer mon commentaire</button>
-        <span id="end-comment-status" style="font-size:11px; color:#6b5a3f;"></span>
+    <div class="comment-card" id="end-comment-section">
+      <div class="card-eyebrow">VOTRE COMMENTAIRE</div>
+      <p class="comment-intro">Un retour sur votre expérience ? Au plaisir de vous lire pour améliorer votre immersion dans notre univers.</p>
+      <textarea id="end-comment-input" rows="4" placeholder="Ce qui vous a marqué, ce qui a manqué, une suggestion…"></textarea>
+      <div class="comment-actions">
+        <button id="end-comment-submit" type="button">Envoyer mon commentaire →</button>
+        <span id="end-comment-status"></span>
       </div>
     </div>
 
     <div class="end-actions">
-      <button class="restart" id="end-restart">↻ Recommencer</button>
+      <button class="restart" id="end-restart" type="button">↻&nbsp;&nbsp;Recommencer</button>
     </div>
   </div>
 </div>
@@ -2844,7 +2987,7 @@ function showEnd() {
   stopIdleLoop();
   // Personnalisation avec le prénom
   const heroTitle = document.getElementById('end-hero-title');
-  if (heroTitle) heroTitle.textContent = userFirstName ? `🎉 Bravo ${userFirstName} !` : '🎉 Bravo !';
+  if (heroTitle) heroTitle.textContent = userFirstName ? `Bravo ${userFirstName}.` : 'Bravo.';
   // Stats globales
   const totalSteps = (demo.steps || []).filter(s => !s.isLast && s.choices && s.choices.length).length;
   const totalErrors = Math.max(0, attempts - totalSteps);
@@ -2892,30 +3035,69 @@ function getProductName() {
   return best || 'le produit';
 }
 
+// Étoiles SVG (style Quiet Material) — total 3, fill terracotta ou couleur custom
+function starsSvg(n, total = 3, size = 14, color = '#B7553B') {
+  let html = '<span class="stars-row">';
+  for (let i = 0; i < total; i++) {
+    const filled = i < n;
+    html += `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${filled ? color : 'none'}" stroke="${color}" stroke-width="1.5" xmlns="http://www.w3.org/2000/svg"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>`;
+  }
+  html += '</span>';
+  return html;
+}
+// Grosse étoile SVG décorative (badge mis en avant)
+function bigStarSvg(size = 56, fill = 'rgba(255,255,255,0.95)') {
+  return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="${fill}" xmlns="http://www.w3.org/2000/svg"><polygon points="12,2 15,9 22,9.5 17,14.5 18.5,22 12,18 5.5,22 7,14.5 2,9.5 9,9"/></svg>`;
+}
+
 function renderProductBadge(badge) {
   const el = document.getElementById('end-product-badge');
   if (badge.tier === 0) {
-    el.classList.add('no-badge');
+    el.className = 'featured-badge no-badge';
     el.innerHTML = `
-      <div class="icon-large" style="opacity:0.4">🏅</div>
-      <div class="name">Pas de badge produit</div>
-      <div class="info">Tu as fait ${badge.totalErrors} erreurs. Réessaie pour décrocher un badge ${badge.productName}.</div>
+      <div>
+        <div class="badge-eyebrow">Badge produit</div>
+        <div class="badge-name">Pas encore de badge</div>
+        <div class="badge-info">${badge.totalErrors} erreur${badge.totalErrors > 1 ? 's' : ''} au total. Réessayez pour décrocher un badge ${escapeHtml(badge.productName)}.</div>
+      </div>
+      <div class="badge-bottom">
+        ${starsSvg(0, 3, 20, '#9E9B94')}
+        ${bigStarSvg(56, 'rgba(158,155,148,0.5)')}
+      </div>
     `;
     return;
   }
-  el.classList.remove('no-badge');
+  el.className = 'featured-badge';
+  // Stars : tier 1→1/3, 2→2/3, 3→3/3, 4 (Expert)→3/3
+  const filled = Math.min(badge.tier, 3);
+  const errorsLine = badge.totalErrors === 0
+    ? 'Parcours parfait — aucune erreur.'
+    : `${badge.totalErrors} erreur${badge.totalErrors > 1 ? 's' : ''} au total.`;
+  // Phrase palier suivant
+  let nextLine = '';
+  if (badge.tier < 4) {
+    const nextThreshold = badge.tier + 1 === 4 ? 0 : badge.tier + 1 === 3 ? 5 : badge.tier + 1 === 2 ? 10 : 20;
+    const nextName = PRODUCT_BADGE_NAMES[badge.tier]; // index = nextTier-1
+    nextLine = badge.tier + 1 === 4
+      ? ` Palier suivant à 0 erreur pour devenir <strong style="font-weight:600">${escapeHtml(nextName)} ${escapeHtml(badge.productName)}</strong>.`
+      : ` Palier suivant à ${nextThreshold} erreurs pour devenir <strong style="font-weight:600">${escapeHtml(nextName)} ${escapeHtml(badge.productName)}</strong>.`;
+  }
   el.innerHTML = `
-    <div class="icon-large">${badge.icon}</div>
-    <div class="name">${escapeHtml(badge.name)}</div>
-    <div class="label">${badge.label}</div>
-    <div class="info">${badge.totalErrors === 0 ? 'Parfait — aucune erreur !' : badge.totalErrors + ' erreur' + (badge.totalErrors > 1 ? 's' : '') + ' au total'}</div>
+    <div>
+      <div class="badge-eyebrow">Badge · ${escapeHtml(badge.label)}</div>
+      <div class="badge-name">${escapeHtml(badge.name)}</div>
+      <div class="badge-info">${errorsLine}${nextLine}</div>
+    </div>
+    <div class="badge-bottom">
+      ${starsSvg(filled, 3, 20, '#fff')}
+      ${bigStarSvg(56, 'rgba(255,255,255,0.95)')}
+    </div>
   `;
 }
 
 function renderPhaseList() {
   const list = document.getElementById('end-phase-list');
   list.innerHTML = '';
-  // On itère les phases dans l'ordre où elles apparaissent dans le parcours
   const phasesInOrder = [];
   for (const s of (demo.steps || [])) {
     if (s.isLast) continue;
@@ -2927,21 +3109,23 @@ function renderPhaseList() {
     const stp = stepsByPhase[phase] || 0;
     const badge = computePhaseBadge(phase, att, stp);
     const errors = badge.errors;
+    const filled = Math.min(badge.tier, 3);
+    const fillPct = (filled / 3) * 100;
     const row = document.createElement('div');
     row.className = 'phase-row' + (badge.tier === 0 ? ' no-badge' : '');
-    if (badge.tier === 0) {
-      row.innerHTML = `
+    const attemptsLine = `${att} tentative${att > 1 ? 's' : ''} · ${errors} erreur${errors > 1 ? 's' : ''}`;
+    const badgeLabel = badge.tier === 0 ? '— pas de badge' : escapeHtml(badge.name);
+    row.innerHTML = `
+      <div class="phase-head">
         <div class="phase-name">${escapeHtml(phase)}</div>
-        <div class="phase-stats">${att} tentative${att > 1 ? 's' : ''} · ${errors} erreur${errors > 1 ? 's' : ''}</div>
-        <div class="phase-badge" style="color:#8a7a60">— pas de badge</div>
-      `;
-    } else {
-      row.innerHTML = `
-        <div class="phase-name">${escapeHtml(phase)}</div>
-        <div class="phase-stats">${att} tentative${att > 1 ? 's' : ''} · ${errors} erreur${errors > 1 ? 's' : ''}</div>
-        <div class="phase-badge"><span class="icon">${badge.icon}</span>${escapeHtml(badge.name)}</div>
-      `;
-    }
+        ${starsSvg(filled, 3, 13, badge.tier === 0 ? '#9E9B94' : '#B7553B')}
+      </div>
+      <div class="phase-bar"><div class="phase-bar-fill" style="width:${fillPct}%"></div></div>
+      <div class="phase-meta">
+        <span class="phase-attempts">${attemptsLine}</span>
+        <span class="phase-badge-name">${badgeLabel}</span>
+      </div>
+    `;
     list.appendChild(row);
   }
 }
@@ -2949,8 +3133,6 @@ function renderPhaseList() {
 function renderEndTips() {
   const list = document.getElementById('end-tips-list');
   list.innerHTML = '';
-  // Sélectionne 3 wrong clicks avec les pires scores (ou les + représentatifs)
-  // Trie par score asc (les pires en premier), dédoublonne par phase si possible
   const sorted = [...wrongClicks].sort((a, b) => a.score - b.score);
   const picked = [];
   const phasesUsed = new Set();
@@ -2961,27 +3143,26 @@ function renderEndTips() {
       phasesUsed.add(w.phase);
     }
   }
-  // Si on a moins de 3, on complète avec les autres wrong clicks
   for (const w of sorted) {
     if (picked.length >= 3) break;
     if (!picked.includes(w)) picked.push(w);
   }
   if (picked.length === 0) {
-    list.innerHTML = `<div class="tip-item"><div class="icon">💯</div><div class="body"><strong>Parfait !</strong> Tu as enchaîné le parcours sans erreur. Continue à privilégier l'écoute active et les questions ouvertes.</div></div>`;
+    list.innerHTML = `<div class="tip-item"><div class="num">01</div><div class="body"><div class="text">Parfait. Vous avez enchaîné le parcours sans erreur. Continuez à privilégier l'écoute active et les questions ouvertes.</div></div></div>`;
     return;
   }
-  for (const w of picked) {
+  picked.forEach((w, i) => {
     const item = document.createElement('div');
     item.className = 'tip-item';
     item.innerHTML = `
-      <div class="icon">💡</div>
+      <div class="num">0${i + 1}</div>
       <div class="body">
-        ${escapeHtml(w.comment)}
+        <div class="text">« ${escapeHtml(w.comment)} »</div>
         <div class="source">Phase ${escapeHtml(w.phase)} · choix au score ${w.score}/5</div>
       </div>
     `;
     list.appendChild(item);
-  }
+  });
 }
 
 function renderMissingBadges(totalErrors, productName) {
@@ -2989,19 +3170,16 @@ function renderMissingBadges(totalErrors, productName) {
   list.innerHTML = '';
   const items = [];
 
-  // Badge produit suivant
   const currentTier = BADGE_TIER_BY_ERRORS(totalErrors);
   if (currentTier < 4) {
     const nextTier = currentTier + 1;
     const nextThreshold = nextTier === 4 ? 0 : nextTier === 3 ? 5 : nextTier === 2 ? 10 : 20;
     items.push({
-      icon: TIER_ICONS[nextTier],
       name: `${PRODUCT_BADGE_NAMES[nextTier - 1]} ${productName}`,
       req: nextTier === 4 ? 'parcours parfait (0 erreur)' : `< ${nextThreshold} erreurs`,
     });
   }
 
-  // Badges par phase (niveaux non atteints)
   const phasesInOrder = [];
   for (const s of (demo.steps || [])) {
     if (s.isLast) continue;
@@ -3018,7 +3196,6 @@ function renderMissingBadges(totalErrors, productName) {
       const nextTier = tier + 1;
       const nextThreshold = nextTier === 4 ? 0 : nextTier === 3 ? 5 : nextTier === 2 ? 10 : 20;
       items.push({
-        icon: TIER_ICONS[nextTier],
         name: `${names[nextTier - 1]} (${phase})`,
         req: nextTier === 4 ? 'phase parfaite (0 erreur)' : `< ${nextThreshold} erreurs sur cette phase`,
       });
@@ -3026,16 +3203,18 @@ function renderMissingBadges(totalErrors, productName) {
   }
 
   if (items.length === 0) {
-    list.innerHTML = `<div class="missing-item"><div class="icon">✨</div><div class="name">Tu as débloqué tous les badges Expert !</div></div>`;
+    list.innerHTML = `<div class="missing-item"><div class="left">${starsSvg(3, 3, 14, '#B7553B')}<span class="name">Tous les badges Expert sont débloqués.</span></div></div>`;
     return;
   }
   for (const it of items) {
     const div = document.createElement('div');
     div.className = 'missing-item';
     div.innerHTML = `
-      <div class="icon">${it.icon}</div>
-      <div class="name">${escapeHtml(it.name)}</div>
-      <div class="req">${escapeHtml(it.req)}</div>
+      <div class="left">
+        ${starsSvg(0, 3, 14, '#9E9B94')}
+        <span class="name">${escapeHtml(it.name)}</span>
+      </div>
+      <span class="req">${escapeHtml(it.req)}</span>
     `;
     list.appendChild(div);
   }
@@ -3044,8 +3223,9 @@ function renderMissingBadges(totalErrors, productName) {
 document.getElementById('missing-toggle').addEventListener('click', () => {
   const list = document.getElementById('missing-list');
   const btn = document.getElementById('missing-toggle');
-  list.classList.toggle('show');
-  btn.textContent = list.classList.contains('show') ? 'Masquer les badges manquants ▴' : 'Voir les badges manquants ▾';
+  const open = list.classList.toggle('show');
+  btn.classList.toggle('open', open);
+  btn.innerHTML = (open ? 'MASQUER LES BADGES MANQUANTS' : 'VOIR LES BADGES MANQUANTS') + '<span class="caret">▾</span>';
 });
 
 document.getElementById('end-restart').addEventListener('click', () => {
